@@ -6,12 +6,10 @@
     <title>Trình Đăng bài Blogger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- *** THÊM MỚI: Tải thư viện Quill.js *** -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .form-input, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
         .btn { @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200; }
         .btn-primary { @apply bg-blue-600 hover:bg-blue-700; }
         .btn-danger { @apply bg-red-600 hover:bg-red-700; }
@@ -19,71 +17,94 @@
         .status-success { @apply text-green-800 bg-green-100; }
         .status-error { @apply text-red-800 bg-red-100; }
         .status-info { @apply text-blue-800 bg-blue-100; }
-        /* *** THÊM MỚI: Style cho Quill Editor và Nhãn *** */
-        #editor-container { background-color: white; }
-        .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border: 1px solid #d1d5db; }
-        .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border: 1px solid #d1d5db; min-height: 300px; }
-        .label-checkbox { @apply flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer; }
-        .label-checkbox input { @apply h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500; }
+        
+        /* *** CÁC THAY ĐỔI LỚN VỀ GIAO DIỆN *** */
+        #editor-fullscreen-container {
+            @apply fixed inset-0 bg-gray-100 p-4 sm:p-6 md:p-8 flex flex-col;
+            z-index: 50;
+        }
+        #editor-header {
+            @apply flex-shrink-0 flex items-center justify-between mb-4;
+        }
+        #editor-main {
+            @apply flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto;
+        }
+        #post-title-input {
+            @apply w-full text-2xl sm:text-3xl font-bold border-none focus:ring-0 p-2 mb-4 bg-transparent;
+        }
+        #labels-wrapper {
+            @apply relative mb-4;
+        }
+        #labels-input-container {
+            @apply flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-white;
+        }
+        .label-pill {
+            @apply flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full;
+        }
+        .label-pill button {
+            @apply bg-blue-200 hover:bg-blue-300 rounded-full p-0.5;
+        }
+        #labels-input {
+            @apply flex-grow border-none focus:ring-0 p-1;
+        }
+        #labels-suggestions {
+            @apply absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg;
+            z-index: 60;
+        }
+        .suggestion-item {
+            @apply px-4 py-2 cursor-pointer hover:bg-gray-100;
+        }
+        .ql-toolbar.ql-snow {
+            @apply rounded-t-lg border-gray-300;
+        }
+        .ql-container.ql-snow {
+            @apply flex-grow rounded-b-lg border-gray-300;
+        }
+        #editor {
+            height: 100%;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-gray-200">
 
-    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-900">Trình Soạn Thảo và Đăng Bài Blogger</h1>
-            <p class="text-gray-600 mt-2">Đăng bài lên blog của bạn một cách nhanh chóng mà không cần vào trang quản trị.</p>
-        </header>
-
-        <!-- Authentication Section -->
-        <div id="auth-container" class="text-center bg-white p-8 rounded-xl shadow-md">
-            <p id="auth-message" class="mb-4">Đang tải cấu hình, vui lòng đợi...</p>
-            <button id="login-button" class="btn btn-primary inline-flex items-center" disabled>
+    <div id="auth-container" class="min-h-screen flex items-center justify-center">
+        <div class="text-center bg-white p-8 rounded-xl shadow-md max-w-sm w-full">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Trình Đăng bài Blogger</h1>
+            <p id="auth-message" class="mb-4 text-gray-600">Đang tải cấu hình...</p>
+            <button id="login-button" class="w-full btn btn-primary inline-flex items-center justify-center" disabled>
                 <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
             </button>
         </div>
+    </div>
 
-        <!-- Main Application -->
-        <div id="app-container" class="hidden">
-            <div class="bg-white p-8 rounded-xl shadow-md">
-                <div class="flex justify-between items-center mb-6">
-                    <p>Đã đăng nhập với: <strong id="user-email" class="text-blue-600"></strong></p>
-                    <button id="logout-button" class="btn btn-danger">Đăng xuất</button>
+    <div id="app-container" class="hidden">
+        <div id="editor-fullscreen-container">
+            <div id="editor-header">
+                <div class="flex items-center gap-4">
+                     <p>Blog: <strong id="blog-name" class="text-blue-600"></strong></p>
                 </div>
-
-                <div class="mb-6">
-                    <label for="blog-selector" class="block mb-2 font-semibold">1. Chọn Blog:</label>
-                    <select id="blog-selector" class="form-select"></select>
-                </div>
-
-                <div class="mb-6">
-                    <label for="post-title" class="block mb-2 font-semibold">2. Tiêu đề bài viết:</label>
-                    <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
-                </div>
-                
-                <div class="mb-6">
-                    <label class="block mb-2 font-semibold">3. Chọn Nhãn:</label>
-                    <div id="labels-container" class="p-3 border border-gray-300 rounded-lg max-h-40 overflow-y-auto bg-gray-50">
-                        <p id="labels-placeholder" class="text-gray-500">Vui lòng chọn một blog để tải danh sách nhãn.</p>
-                    </div>
-                </div>
-
-                <div class="mb-6">
-                    <label class="block mb-2 font-semibold">4. Nội dung bài viết:</label>
-                    <div id="editor-container">
-                        <div id="editor"></div>
-                    </div>
-                </div>
-
-                <div class="text-center">
-                    <button id="publish-button" class="btn btn-primary text-lg">
-                        🚀 Đăng bài ngay
+                <div class="flex items-center gap-4">
+                    <button id="logout-button" class="text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
+                    <button id="publish-button" class="btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg px-8 py-3">
+                        🚀 Đăng bài
                     </button>
                 </div>
             </div>
+            <div id="editor-main">
+                <textarea id="post-title-input" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+                
+                <div id="labels-wrapper">
+                    <div id="labels-input-container">
+                        <input id="labels-input" type="text" placeholder="Thêm nhãn...">
+                    </div>
+                    <div id="labels-suggestions" class="hidden"></div>
+                </div>
+
+                <div id="editor" class="flex-grow"></div>
+            </div>
+             <div id="status-message" class="status-box flex-shrink-0"></div>
         </div>
-        <div id="status-message" class="status-box"></div>
     </div>
 
     <script src="https://apis.google.com/js/api.js"></script>
@@ -99,11 +120,12 @@
         const publishButton = document.getElementById('publish-button');
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
-        const userEmailElement = document.getElementById('user-email');
-        const blogSelector = document.getElementById('blog-selector');
-        const postTitle = document.getElementById('post-title');
-        const labelsContainer = document.getElementById('labels-container');
-        const labelsPlaceholder = document.getElementById('labels-placeholder');
+        const blogNameElement = document.getElementById('blog-name');
+        const postTitleInput = document.getElementById('post-title-input');
+        const labelsWrapper = document.getElementById('labels-wrapper');
+        const labelsInputContainer = document.getElementById('labels-input-container');
+        const labelsInput = document.getElementById('labels-input');
+        const labelsSuggestions = document.getElementById('labels-suggestions');
         const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
         
@@ -111,10 +133,13 @@
         let gapiInited = false;
         let gisInited = false;
         let quill;
+        let selectedBlogId = null;
+        let allAvailableLabels = [];
+        let selectedLabels = new Set();
 
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
-            statusMessage.className = 'status-box';
+            statusMessage.className = 'status-box flex-shrink-0';
             switch (type) {
                 case 'success': statusMessage.classList.add('status-success'); break;
                 case 'error': statusMessage.classList.add('status-error'); break;
@@ -154,7 +179,7 @@
         function maybeEnableButtons() {
             if (gapiInited && gisInited) {
                 loginButton.disabled = false;
-                authMessage.textContent = 'Vui lòng đăng nhập bằng tài khoản Google để bắt đầu.';
+                authMessage.textContent = 'Vui lòng đăng nhập bằng tài khoản Google.';
             }
         }
 
@@ -162,20 +187,15 @@
             try {
                 const response = await fetch('/api/config');
                 const responseText = await response.text();
-
-                if (!response.ok) {
-                    throw new Error(`Server trả về lỗi ${response.status}. Vui lòng kiểm tra log trên Render.`);
-                }
-
+                if (!response.ok) throw new Error(`Server trả về lỗi ${response.status}.`);
                 const config = JSON.parse(responseText);
                 gapi.load('client', initializeGapiClient);
                 initializeGisClient(config.clientId);
-
             } catch (error) {
-                console.error('Failed to fetch config or parse JSON:', error);
+                console.error('Failed to fetch config:', error);
                 let displayError = error.message;
                 if (error instanceof SyntaxError) {
-                    displayError = "Server đã trả về phản hồi không hợp lệ (HTML). Vui lòng kiểm tra log của server trên Render để tìm lỗi.";
+                    displayError = "Lỗi server. Vui lòng kiểm tra log trên Render.";
                 }
                 setStatus(displayError, 'error');
                 authMessage.textContent = 'Lỗi kết nối hoặc cấu hình server.';
@@ -189,31 +209,23 @@
             } else {
                 authContainer.classList.remove('hidden');
                 appContainer.classList.add('hidden');
-                userEmailElement.textContent = '';
-                blogSelector.innerHTML = '';
-                postTitle.value = '';
-                labelsContainer.innerHTML = `<p id="labels-placeholder" class="text-gray-500">Vui lòng chọn một blog để tải danh sách nhãn.</p>`;
+                blogNameElement.textContent = '';
+                postTitleInput.value = '';
+                selectedLabels.clear();
+                renderSelectedLabels();
                 if(quill) quill.setText('');
             }
         }
 
         function handleLogout() {
             const token = gapi.client.getToken();
-            if (token !== null) {
-                google.accounts.oauth2.revoke(token.access_token, () => {
-                    gapi.client.setToken('');
-                    updateUI(false);
-                });
-            } else {
-                 updateUI(false);
-            }
+            if (token) google.accounts.oauth2.revoke(token.access_token, () => gapi.client.setToken(''));
+            updateUI(false);
         }
 
-        async function fetchAndDisplayLabels(blogId) {
-            labelsContainer.innerHTML = `<p id="labels-placeholder" class="text-gray-500 animate-pulse">Đang tải danh sách nhãn...</p>`;
+        async function fetchAndStoreLabels(blogId) {
             const token = gapi.client.getToken();
-            if (!token) { return; }
-
+            if (!token) return;
             try {
                 const response = await fetch('/api/labels', {
                     method: 'POST',
@@ -221,28 +233,11 @@
                     body: JSON.stringify({ accessToken: token.access_token, blogId: blogId })
                 });
                 const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.error || 'Lỗi không xác định từ server.');
-                }
-
-                labelsContainer.innerHTML = ''; // Xóa placeholder
-                if (data.labels && data.labels.length > 0) {
-                    data.labels.forEach(label => {
-                        const div = document.createElement('div');
-                        div.className = 'label-checkbox';
-                        div.innerHTML = `
-                            <input id="label-${label}" type="checkbox" value="${label}" class="label-input">
-                            <label for="label-${label}" class="cursor-pointer">${label}</label>
-                        `;
-                        labelsContainer.appendChild(div);
-                    });
-                } else {
-                    labelsContainer.innerHTML = `<p class="text-gray-500">Blog này chưa có nhãn nào.</p>`;
-                }
-
+                if (!response.ok) throw new Error(data.error || 'Lỗi không xác định.');
+                allAvailableLabels = data.labels || [];
             } catch (err) {
                 console.error("Lỗi khi tải nhãn:", err);
-                labelsContainer.innerHTML = `<p class="text-red-500">Lỗi khi tải nhãn: ${err.message}</p>`;
+                setStatus(`Lỗi khi tải nhãn: ${err.message}`, 'error');
             }
         }
 
@@ -252,72 +247,97 @@
                 const userEmail = profileResponse.result.email;
 
                 if (userEmail.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
-                    setStatus(`Truy cập bị từ chối. Chỉ tài khoản <strong>${ALLOWED_EMAIL}</strong> mới được phép sử dụng.`, 'error');
+                    setStatus(`Truy cập bị từ chối.`, 'error');
                     setTimeout(handleLogout, 3000); 
                     return;
                 }
-                userEmailElement.textContent = userEmail;
 
                 const token = gapi.client.getToken();
-                if (!token) { throw new Error("Không tìm thấy token xác thực."); }
+                if (!token) throw new Error("Không tìm thấy token xác thực.");
 
                 const backendResponse = await fetch('/api/blogs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token })
                 });
-                
                 const blogData = await backendResponse.json();
-
-                if (!backendResponse.ok) {
-                    const errorMessage = blogData.error?.message || JSON.stringify(blogData);
-                    throw new Error(`Lỗi từ server: ${errorMessage}`);
-                }
+                if (!backendResponse.ok) throw new Error(`Lỗi từ server: ${blogData.error?.message}`);
 
                 const blogs = blogData.items;
-                blogSelector.innerHTML = '';
                 if (blogs && blogs.length > 0) {
-                    blogs.forEach(blog => {
-                        const option = document.createElement('option');
-                        option.value = blog.id;
-                        option.textContent = blog.name;
-                        blogSelector.appendChild(option);
-                    });
+                    selectedBlogId = blogs[0].id;
+                    blogNameElement.textContent = blogs[0].name;
+                    await fetchAndStoreLabels(selectedBlogId);
                     updateUI(true);
                     setStatus('');
-                    // Tải nhãn cho blog đầu tiên trong danh sách
-                    fetchAndDisplayLabels(blogs[0].id);
                 } else {
                     setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
                     handleLogout();
                 }
             } catch (err) {
-                console.error('Đã xảy ra lỗi khi lấy dữ liệu. Chi tiết lỗi:', err);
+                console.error('Lỗi khi lấy dữ liệu:', err);
                 setStatus(`Lỗi: ${err.message}`, 'error');
                 handleLogout();
             }
         }
+
+        function renderSelectedLabels() {
+            // Xóa các pill cũ
+            labelsInputContainer.querySelectorAll('.label-pill').forEach(pill => pill.remove());
+            // Thêm lại các pill mới
+            selectedLabels.forEach(label => {
+                const pill = document.createElement('span');
+                pill.className = 'label-pill';
+                pill.textContent = label;
+                const removeBtn = document.createElement('button');
+                removeBtn.innerHTML = '&times;';
+                removeBtn.onclick = () => {
+                    selectedLabels.delete(label);
+                    renderSelectedLabels();
+                };
+                pill.appendChild(removeBtn);
+                labelsInputContainer.insertBefore(pill, labelsInput);
+            });
+        }
         
-        function handleLogin() {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
+        function showLabelSuggestions(query) {
+            labelsSuggestions.innerHTML = '';
+            if (!query) {
+                labelsSuggestions.classList.add('hidden');
+                return;
+            }
+            const filtered = allAvailableLabels.filter(l => l.toLowerCase().includes(query.toLowerCase()) && !selectedLabels.has(l));
+            
+            if (filtered.length > 0) {
+                filtered.forEach(label => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.textContent = label;
+                    item.onclick = () => {
+                        selectedLabels.add(label);
+                        renderSelectedLabels();
+                        labelsInput.value = '';
+                        labelsSuggestions.classList.add('hidden');
+                    };
+                    labelsSuggestions.appendChild(item);
+                });
+                labelsSuggestions.classList.remove('hidden');
+            } else {
+                labelsSuggestions.classList.add('hidden');
+            }
         }
 
         async function publishPost() {
-            const blogId = blogSelector.value;
-            const title = postTitle.value.trim();
-            const content = quill.root.innerHTML; // Lấy nội dung từ Quill
+            const title = postTitleInput.value.trim();
+            const content = quill.root.innerHTML;
             const token = gapi.client.getToken();
 
-            // Lấy các nhãn đã được chọn
-            const selectedLabels = Array.from(document.querySelectorAll('#labels-container input:checked')).map(input => input.value);
-
-            if (!blogId || !title || content === '<p><br></p>') {
+            if (!selectedBlogId || !title || content === '<p><br></p>') {
                 setStatus('Vui lòng điền đầy đủ tiêu đề và nội dung.', 'error');
                 return;
             }
             if (!token) {
-                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
-                return;
+                setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return;
             }
 
             setStatus('Đang đăng bài...', 'info');
@@ -328,27 +348,22 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        blogId: blogId,
+                        blogId: selectedBlogId,
                         title: title,
                         content: content,
                         accessToken: token.access_token,
-                        labels: selectedLabels
+                        labels: Array.from(selectedLabels)
                     })
                 });
-
                 const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.error?.message || JSON.stringify(result));
-                }
+                if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
                 
                 setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
-                postTitle.value = '';
+                postTitleInput.value = '';
                 quill.setText('');
-                document.querySelectorAll('#labels-container input:checked').forEach(input => input.checked = false);
-
+                selectedLabels.clear();
+                renderSelectedLabels();
             } catch (err) {
-                console.error('Lỗi khi đăng bài:', err);
                 setStatus(`Lỗi khi đăng bài: ${err.message}`, 'error');
             } finally {
                 publishButton.disabled = false;
@@ -357,26 +372,45 @@
 
         function initializeQuill() {
              quill = new Quill('#editor', {
-                modules: {
-                    toolbar: [
-                        [{ 'header': [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        ['link', 'image', 'video', 'blockquote', 'code-block'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        [{ 'align': [] }],
-                        ['clean']
-                    ]
-                },
+                modules: { toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['link', 'image', 'video', 'blockquote', 'code-block'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'align': [] }],
+                    ['clean']
+                ]},
                 placeholder: 'Soạn nội dung của bạn tại đây...',
                 theme: 'snow'
             });
         }
 
-        loginButton.addEventListener('click', handleLogin);
+        // Event Listeners
+        loginButton.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: 'consent' }));
         logoutButton.addEventListener('click', handleLogout);
         publishButton.addEventListener('click', publishPost);
-        blogSelector.addEventListener('change', (event) => {
-            fetchAndDisplayLabels(event.target.value);
+        
+        labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
+        labelsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                const newLabel = labelsInput.value.trim();
+                if (newLabel && !selectedLabels.has(newLabel)) {
+                    selectedLabels.add(newLabel);
+                    renderSelectedLabels();
+                }
+                labelsInput.value = '';
+                labelsSuggestions.classList.add('hidden');
+            }
+        });
+        document.addEventListener('click', (e) => {
+            if (!labelsWrapper.contains(e.target)) {
+                labelsSuggestions.classList.add('hidden');
+            }
+        });
+        postTitleInput.addEventListener('input', () => {
+            postTitleInput.style.height = 'auto';
+            postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
         });
 
         window.onload = () => {
