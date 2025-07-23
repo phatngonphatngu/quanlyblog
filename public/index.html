@@ -109,9 +109,11 @@
             }
         }
         
-        // Khởi tạo GAPI client
+        // Khởi tạo GAPI client (ĐÃ SỬA LỖI)
         async function initializeGapiClient() {
+            // Tải cả thư viện Blogger VÀ OAuth2 để lấy thông tin người dùng
             await gapi.client.load('blogger', 'v3');
+            await gapi.client.load('oauth2', 'v2');
             gapiInited = true;
             maybeEnableButtons();
         }
@@ -153,15 +155,14 @@
         async function fetchConfigAndInitialize() {
             try {
                 const response = await fetch('/api/config');
-                const responseText = await response.text(); // Đọc response dưới dạng text trước
+                const responseText = await response.text();
 
                 if (!response.ok) {
-                    // Nếu server trả về lỗi, hiển thị nội dung lỗi đó
                     console.error("Server error response:", responseText);
                     throw new Error(`Server trả về lỗi ${response.status}. Vui lòng kiểm tra log trên Render.`);
                 }
 
-                const config = JSON.parse(responseText); // Thử chuyển đổi text sang JSON
+                const config = JSON.parse(responseText);
                 
                 gapi.load('client', initializeGapiClient);
                 initializeGisClient(config.clientId);
@@ -169,7 +170,6 @@
             } catch (error) {
                 console.error('Failed to fetch config or parse JSON:', error);
                 let displayError = error.message;
-                // Nếu lỗi là do không parse được JSON (tức là server trả về HTML)
                 if (error instanceof SyntaxError) {
                     displayError = "Server đã trả về phản hồi không hợp lệ (HTML). Vui lòng kiểm tra log của server trên Render để tìm lỗi.";
                 }
@@ -206,9 +206,10 @@
             }
         }
 
-        // Fetch user info and their blogs (với xử lý lỗi tốt hơn)
+        // Fetch user info and their blogs
         async function fetchUserInfoAndBlogs() {
             try {
+                // Lệnh này giờ sẽ hoạt động vì đã tải thư viện oauth2
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
                 const userEmail = profileResponse.result.email;
 
@@ -232,13 +233,12 @@
                         blogSelector.appendChild(option);
                     });
                     updateUI(true);
-                    setStatus(''); // Xóa thông báo cũ khi thành công
+                    setStatus('');
                 } else {
                     setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
                     handleLogout();
                 }
             } catch (err) {
-                // Cải thiện việc ghi log lỗi để chẩn đoán
                 console.error('Đã xảy ra lỗi khi lấy dữ liệu blog. Chi tiết lỗi:', err);
                 let errorMessage = 'Không thể lấy dữ liệu từ Google. Vui lòng kiểm tra lại cấu hình API trên Google Cloud và đảm bảo Blogger API đã được bật.';
                 
@@ -246,10 +246,6 @@
                     errorMessage = `Lỗi từ Google: ${err.result.error.message}`;
                 } else if (err.message) {
                     errorMessage = err.message;
-                } else {
-                    try {
-                        console.error('Cấu trúc lỗi không xác định:', JSON.stringify(err));
-                    } catch (e) { /* Bỏ qua lỗi stringify */ }
                 }
                 setStatus(`Lỗi: ${errorMessage}`, 'error');
                 handleLogout();
