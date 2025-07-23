@@ -6,10 +6,12 @@
     <title>Trình Đăng bài Blogger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- KHÔNG CẦN Tải thư viện TinyMCE nữa -->
+    <!-- *** THÊM MỚI: Tải thư viện Quill.js *** -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .form-input, .form-textarea, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
+        .form-input, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
         .btn { @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200; }
         .btn-primary { @apply bg-blue-600 hover:bg-blue-700; }
         .btn-danger { @apply bg-red-600 hover:bg-red-700; }
@@ -17,6 +19,12 @@
         .status-success { @apply text-green-800 bg-green-100; }
         .status-error { @apply text-red-800 bg-red-100; }
         .status-info { @apply text-blue-800 bg-blue-100; }
+        /* *** THÊM MỚI: Style cho Quill Editor và Nhãn *** */
+        #editor-container { background-color: white; }
+        .ql-toolbar.ql-snow { border-radius: 0.5rem 0.5rem 0 0; border: 1px solid #d1d5db; }
+        .ql-container.ql-snow { border-radius: 0 0 0.5rem 0.5rem; border: 1px solid #d1d5db; min-height: 300px; }
+        .label-checkbox { @apply flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer; }
+        .label-checkbox input { @apply h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -54,16 +62,18 @@
                     <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
                 </div>
                 
-                <!-- *** THÊM MỚI: Ô nhập Nhãn *** -->
                 <div class="mb-6">
-                    <label for="post-labels" class="block mb-2 font-semibold">3. Nhãn (cách nhau bằng dấu phẩy):</label>
-                    <input type="text" id="post-labels" class="form-input" placeholder="ví dụ: công nghệ, thủ thuật, tin tức">
+                    <label class="block mb-2 font-semibold">3. Chọn Nhãn:</label>
+                    <div id="labels-container" class="p-3 border border-gray-300 rounded-lg max-h-40 overflow-y-auto bg-gray-50">
+                        <p id="labels-placeholder" class="text-gray-500">Vui lòng chọn một blog để tải danh sách nhãn.</p>
+                    </div>
                 </div>
 
                 <div class="mb-6">
-                    <label for="post-content" class="block mb-2 font-semibold">4. Nội dung bài viết (HTML):</label>
-                    <!-- *** THAY ĐỔI: Trình soạn thảo đơn giản *** -->
-                    <textarea id="post-content" class="form-textarea font-mono bg-gray-50 border-gray-300" rows="20" placeholder="Soạn nội dung HTML của bạn tại đây..."></textarea>
+                    <label class="block mb-2 font-semibold">4. Nội dung bài viết:</label>
+                    <div id="editor-container">
+                        <div id="editor"></div>
+                    </div>
                 </div>
 
                 <div class="text-center">
@@ -92,14 +102,15 @@
         const userEmailElement = document.getElementById('user-email');
         const blogSelector = document.getElementById('blog-selector');
         const postTitle = document.getElementById('post-title');
-        const postContent = document.getElementById('post-content');
-        const postLabels = document.getElementById('post-labels'); // Thêm mới
+        const labelsContainer = document.getElementById('labels-container');
+        const labelsPlaceholder = document.getElementById('labels-placeholder');
         const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
         
         let tokenClient;
         let gapiInited = false;
         let gisInited = false;
+        let quill;
 
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
@@ -119,7 +130,6 @@
 
         async function tokenCallback(tokenResponse) {
             if (tokenResponse.error) {
-                console.error('Authentication error:', tokenResponse.error);
                 setStatus('Lỗi xác thực. Vui lòng thử lại.', 'error');
                 return;
             }
@@ -182,8 +192,8 @@
                 userEmailElement.textContent = '';
                 blogSelector.innerHTML = '';
                 postTitle.value = '';
-                postLabels.value = ''; // Thêm mới
-                postContent.value = ''; // Thêm mới
+                labelsContainer.innerHTML = `<p id="labels-placeholder" class="text-gray-500">Vui lòng chọn một blog để tải danh sách nhãn.</p>`;
+                if(quill) quill.setText('');
             }
         }
 
@@ -196,6 +206,43 @@
                 });
             } else {
                  updateUI(false);
+            }
+        }
+
+        async function fetchAndDisplayLabels(blogId) {
+            labelsContainer.innerHTML = `<p id="labels-placeholder" class="text-gray-500 animate-pulse">Đang tải danh sách nhãn...</p>`;
+            const token = gapi.client.getToken();
+            if (!token) { return; }
+
+            try {
+                const response = await fetch('/api/labels', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: blogId })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Lỗi không xác định từ server.');
+                }
+
+                labelsContainer.innerHTML = ''; // Xóa placeholder
+                if (data.labels && data.labels.length > 0) {
+                    data.labels.forEach(label => {
+                        const div = document.createElement('div');
+                        div.className = 'label-checkbox';
+                        div.innerHTML = `
+                            <input id="label-${label}" type="checkbox" value="${label}" class="label-input">
+                            <label for="label-${label}" class="cursor-pointer">${label}</label>
+                        `;
+                        labelsContainer.appendChild(div);
+                    });
+                } else {
+                    labelsContainer.innerHTML = `<p class="text-gray-500">Blog này chưa có nhãn nào.</p>`;
+                }
+
+            } catch (err) {
+                console.error("Lỗi khi tải nhãn:", err);
+                labelsContainer.innerHTML = `<p class="text-red-500">Lỗi khi tải nhãn: ${err.message}</p>`;
             }
         }
 
@@ -238,6 +285,8 @@
                     });
                     updateUI(true);
                     setStatus('');
+                    // Tải nhãn cho blog đầu tiên trong danh sách
+                    fetchAndDisplayLabels(blogs[0].id);
                 } else {
                     setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
                     handleLogout();
@@ -256,19 +305,14 @@
         async function publishPost() {
             const blogId = blogSelector.value;
             const title = postTitle.value.trim();
-            const content = postContent.value; // Lấy nội dung từ textarea
-            const labelsInput = postLabels.value.trim(); // Lấy giá trị từ ô nhãn
+            const content = quill.root.innerHTML; // Lấy nội dung từ Quill
             const token = gapi.client.getToken();
 
-            // Xử lý chuỗi nhãn thành một mảng các nhãn
-            const labels = labelsInput ? labelsInput.split(',').map(label => label.trim()).filter(label => label) : [];
+            // Lấy các nhãn đã được chọn
+            const selectedLabels = Array.from(document.querySelectorAll('#labels-container input:checked')).map(input => input.value);
 
-            if (!blogId) {
-                setStatus('Vui lòng chọn một blog.', 'error');
-                return;
-            }
-            if (!title || !content) {
-                setStatus('Tiêu đề và nội dung không được để trống.', 'error');
+            if (!blogId || !title || content === '<p><br></p>') {
+                setStatus('Vui lòng điền đầy đủ tiêu đề và nội dung.', 'error');
                 return;
             }
             if (!token) {
@@ -288,21 +332,20 @@
                         title: title,
                         content: content,
                         accessToken: token.access_token,
-                        labels: labels // Gửi mảng nhãn lên server
+                        labels: selectedLabels
                     })
                 });
 
                 const result = await response.json();
 
                 if (!response.ok) {
-                    const errorMessage = result.error?.message || JSON.stringify(result);
-                    throw new Error(errorMessage);
+                    throw new Error(result.error?.message || JSON.stringify(result));
                 }
                 
                 setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
                 postTitle.value = '';
-                postLabels.value = ''; // Xóa nội dung ô nhãn
-                postContent.value = ''; // Xóa nội dung trong textarea
+                quill.setText('');
+                document.querySelectorAll('#labels-container input:checked').forEach(input => input.checked = false);
 
             } catch (err) {
                 console.error('Lỗi khi đăng bài:', err);
@@ -312,12 +355,33 @@
             }
         }
 
+        function initializeQuill() {
+             quill = new Quill('#editor', {
+                modules: {
+                    toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        ['link', 'image', 'video', 'blockquote', 'code-block'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': [] }],
+                        ['clean']
+                    ]
+                },
+                placeholder: 'Soạn nội dung của bạn tại đây...',
+                theme: 'snow'
+            });
+        }
+
         loginButton.addEventListener('click', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         publishButton.addEventListener('click', publishPost);
+        blogSelector.addEventListener('change', (event) => {
+            fetchAndDisplayLabels(event.target.value);
+        });
 
         window.onload = () => {
             fetchConfigAndInitialize();
+            initializeQuill();
         };
     </script>
 </body>
