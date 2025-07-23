@@ -6,9 +6,7 @@
     <title>Trình Đăng bài Blogger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- *** THÊM MỚI: Tải thư viện TinyMCE *** -->
-    <!-- Lưu ý: Để sử dụng lâu dài, bạn nên đăng ký một API Key miễn phí tại tiny.cloud -->
-    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <!-- KHÔNG CẦN Tải thư viện TinyMCE nữa -->
     <style>
         body { font-family: 'Inter', sans-serif; }
         .form-input, .form-textarea, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
@@ -47,7 +45,7 @@
                 </div>
 
                 <div class="mb-6">
-                    <label for="blog-selector" class="block mb-2 font-semibold">1. Chọn Blog để đăng bài:</label>
+                    <label for="blog-selector" class="block mb-2 font-semibold">1. Chọn Blog:</label>
                     <select id="blog-selector" class="form-select"></select>
                 </div>
 
@@ -55,10 +53,17 @@
                     <label for="post-title" class="block mb-2 font-semibold">2. Tiêu đề bài viết:</label>
                     <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
                 </div>
+                
+                <!-- *** THÊM MỚI: Ô nhập Nhãn *** -->
                 <div class="mb-6">
-                    <label for="post-content" class="block mb-2 font-semibold">3. Nội dung bài viết:</label>
-                    <!-- *** THAY ĐỔI: Ô textarea này sẽ được TinyMCE thay thế *** -->
-                    <textarea id="post-content"></textarea>
+                    <label for="post-labels" class="block mb-2 font-semibold">3. Nhãn (cách nhau bằng dấu phẩy):</label>
+                    <input type="text" id="post-labels" class="form-input" placeholder="ví dụ: công nghệ, thủ thuật, tin tức">
+                </div>
+
+                <div class="mb-6">
+                    <label for="post-content" class="block mb-2 font-semibold">4. Nội dung bài viết (HTML):</label>
+                    <!-- *** THAY ĐỔI: Trình soạn thảo đơn giản *** -->
+                    <textarea id="post-content" class="form-textarea font-mono bg-gray-50 border-gray-300" rows="20" placeholder="Soạn nội dung HTML của bạn tại đây..."></textarea>
                 </div>
 
                 <div class="text-center">
@@ -87,7 +92,8 @@
         const userEmailElement = document.getElementById('user-email');
         const blogSelector = document.getElementById('blog-selector');
         const postTitle = document.getElementById('post-title');
-        // postContent không cần lấy ở đây nữa, sẽ dùng TinyMCE API
+        const postContent = document.getElementById('post-content');
+        const postLabels = document.getElementById('post-labels'); // Thêm mới
         const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
         
@@ -176,9 +182,8 @@
                 userEmailElement.textContent = '';
                 blogSelector.innerHTML = '';
                 postTitle.value = '';
-                if (tinymce.get('post-content')) {
-                    tinymce.get('post-content').setContent('');
-                }
+                postLabels.value = ''; // Thêm mới
+                postContent.value = ''; // Thêm mới
             }
         }
 
@@ -251,9 +256,12 @@
         async function publishPost() {
             const blogId = blogSelector.value;
             const title = postTitle.value.trim();
-            // *** THAY ĐỔI: Lấy nội dung từ TinyMCE ***
-            const content = tinymce.get('post-content').getContent();
+            const content = postContent.value; // Lấy nội dung từ textarea
+            const labelsInput = postLabels.value.trim(); // Lấy giá trị từ ô nhãn
             const token = gapi.client.getToken();
+
+            // Xử lý chuỗi nhãn thành một mảng các nhãn
+            const labels = labelsInput ? labelsInput.split(',').map(label => label.trim()).filter(label => label) : [];
 
             if (!blogId) {
                 setStatus('Vui lòng chọn một blog.', 'error');
@@ -279,7 +287,8 @@
                         blogId: blogId,
                         title: title,
                         content: content,
-                        accessToken: token.access_token
+                        accessToken: token.access_token,
+                        labels: labels // Gửi mảng nhãn lên server
                     })
                 });
 
@@ -292,7 +301,8 @@
                 
                 setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
                 postTitle.value = '';
-                tinymce.get('post-content').setContent(''); // Xóa nội dung trong trình soạn thảo
+                postLabels.value = ''; // Xóa nội dung ô nhãn
+                postContent.value = ''; // Xóa nội dung trong textarea
 
             } catch (err) {
                 console.error('Lỗi khi đăng bài:', err);
@@ -302,32 +312,12 @@
             }
         }
 
-        // *** THÊM MỚI: Khởi tạo TinyMCE ***
-        function initializeTinyMCE() {
-            tinymce.init({
-                selector: 'textarea#post-content',
-                plugins: 'preview importcss searchreplace autolink autosave save directionality code visualblocks visualchars fullscreen image link media template codesample table charmap pagebreak nonbreaking anchor insertdatetime advlist lists wordcount help charmap quickbars emoticons',
-                menubar: 'file edit view insert format tools table help',
-                toolbar: 'undo redo | bold italic underline strikethrough | fontfamily fontsize blocks | alignleft aligncenter alignright alignjustify | outdent indent |  numlist bullist | forecolor backcolor removeformat | pagebreak | charmap emoticons | fullscreen  preview save print | insertfile image media template link anchor codesample | ltr rtl',
-                height: 500,
-                image_caption: true,
-                quickbars_selection_toolbar: 'bold italic | quicklink h2 h3 blockquote quickimage quicktable',
-                noneditable_class: 'mceNonEditable',
-                toolbar_mode: 'sliding',
-                contextmenu: 'link image table',
-                skin: 'oxide',
-                content_css: 'default',
-                content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:16px }'
-            });
-        }
-
         loginButton.addEventListener('click', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         publishButton.addEventListener('click', publishPost);
 
         window.onload = () => {
             fetchConfigAndInitialize();
-            initializeTinyMCE(); // Khởi tạo trình soạn thảo khi tải trang
         };
     </script>
 </body>
