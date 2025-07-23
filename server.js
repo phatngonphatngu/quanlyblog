@@ -25,7 +25,7 @@ app.get('/api/config', (req, res) => {
     res.json({ clientId: CLIENT_ID });
 });
 
-// === ENDPOINT MỚI: Lấy danh sách blog ===
+// Endpoint lấy danh sách blog
 app.post('/api/blogs', async (req, res) => {
     const { accessToken } = req.body;
 
@@ -62,10 +62,64 @@ app.post('/api/blogs', async (req, res) => {
     }
 });
 
+// === ENDPOINT MỚI: Lấy tất cả nhãn của một blog ===
+app.post('/api/labels', async (req, res) => {
+    const { accessToken, blogId } = req.body;
+
+    if (!accessToken || !blogId) {
+        return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
+    }
+    if (!API_KEY) {
+        return res.status(500).json({ error: 'API Key không được cấu hình trên server.' });
+    }
+
+    let allLabels = new Set();
+    let nextPageToken = null;
+
+    try {
+        do {
+            let apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?fetchBodies=false&fields=nextPageToken,items/labels&maxResults=500&key=${API_KEY}`;
+            if (nextPageToken) {
+                apiUrl += `&pageToken=${nextPageToken}`;
+            }
+
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('Lỗi từ Google API khi lấy labels:', data);
+                throw new Error(data.error?.message || 'Không thể lấy danh sách bài đăng.');
+            }
+
+            if (data.items) {
+                data.items.forEach(post => {
+                    if (post.labels) {
+                        post.labels.forEach(label => allLabels.add(label));
+                    }
+                });
+            }
+            nextPageToken = data.nextPageToken;
+        } while (nextPageToken);
+
+        res.status(200).json({ labels: Array.from(allLabels).sort() });
+
+    } catch (error) {
+        console.error('Lỗi server nội bộ khi lấy labels:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 // API Endpoint để đăng bài
 app.post('/api/publish', async (req, res) => {
-    const { blogId, title, content, accessToken } = req.body;
+    const { blogId, title, content, accessToken, labels } = req.body;
 
     if (!blogId || !title || !content || !accessToken) {
         return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
@@ -78,17 +132,20 @@ app.post('/api/publish', async (req, res) => {
     const bloggerApiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?key=${API_KEY}`;
 
     try {
+        const postBody = {
+            kind: 'blogger#post',
+            title: title,
+            content: content,
+            labels: labels || []
+        };
+
         const response = await fetch(bloggerApiUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                kind: 'blogger#post',
-                title: title,
-                content: content
-            })
+            body: JSON.stringify(postBody)
         });
 
         const data = await response.json();
