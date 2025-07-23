@@ -6,6 +6,9 @@
     <title>Trình Đăng bài Blogger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- *** THÊM MỚI: Tải thư viện TinyMCE *** -->
+    <!-- Lưu ý: Để sử dụng lâu dài, bạn nên đăng ký một API Key miễn phí tại tiny.cloud -->
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         .form-input, .form-textarea, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
@@ -53,8 +56,9 @@
                     <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
                 </div>
                 <div class="mb-6">
-                    <label for="post-content" class="block mb-2 font-semibold">3. Nội dung bài viết (hỗ trợ HTML):</label>
-                    <textarea id="post-content" class="form-textarea" rows="15" placeholder="Soạn nội dung của bạn..."></textarea>
+                    <label for="post-content" class="block mb-2 font-semibold">3. Nội dung bài viết:</label>
+                    <!-- *** THAY ĐỔI: Ô textarea này sẽ được TinyMCE thay thế *** -->
+                    <textarea id="post-content"></textarea>
                 </div>
 
                 <div class="text-center">
@@ -71,9 +75,7 @@
     <script src="https://accounts.google.com/gsi/client"></script>
 
     <script type="text/javascript">
-        // Cấu hình sẽ được lấy từ server
-        const ALLOWED_EMAIL = 'phatngonphatngu@gmail.com';
-        // *** ĐÃ SỬA LỖI: Thêm scope để lấy thông tin email ***
+        const ALLOWED_EMAIL = 'phatngonphatngu@gmail.com'; // Sửa thành email của bạn nếu cần
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // DOM Elements
@@ -85,7 +87,7 @@
         const userEmailElement = document.getElementById('user-email');
         const blogSelector = document.getElementById('blog-selector');
         const postTitle = document.getElementById('post-title');
-        const postContent = document.getElementById('post-content');
+        // postContent không cần lấy ở đây nữa, sẽ dùng TinyMCE API
         const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
         
@@ -174,7 +176,9 @@
                 userEmailElement.textContent = '';
                 blogSelector.innerHTML = '';
                 postTitle.value = '';
-                postContent.value = '';
+                if (tinymce.get('post-content')) {
+                    tinymce.get('post-content').setContent('');
+                }
             }
         }
 
@@ -192,7 +196,6 @@
 
         async function fetchUserInfoAndBlogs() {
             try {
-                // Bước 1: Lấy thông tin người dùng
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
                 const userEmail = profileResponse.result.email;
 
@@ -203,11 +206,9 @@
                 }
                 userEmailElement.textContent = userEmail;
 
-                // Bước 2: Lấy access token để gửi lên backend
                 const token = gapi.client.getToken();
                 if (!token) { throw new Error("Không tìm thấy token xác thực."); }
 
-                // Bước 3: Gọi đến backend của bạn để lấy danh sách blog
                 const backendResponse = await fetch('/api/blogs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -221,7 +222,6 @@
                     throw new Error(`Lỗi từ server: ${errorMessage}`);
                 }
 
-                // Bước 4: Hiển thị danh sách blog
                 const blogs = blogData.items;
                 blogSelector.innerHTML = '';
                 if (blogs && blogs.length > 0) {
@@ -251,11 +251,20 @@
         async function publishPost() {
             const blogId = blogSelector.value;
             const title = postTitle.value.trim();
-            const content = postContent.value.trim();
+            // *** THAY ĐỔI: Lấy nội dung từ TinyMCE ***
+            const content = tinymce.get('post-content').getContent();
             const token = gapi.client.getToken();
 
-            if (!blogId || !title || !content || !token) {
-                setStatus('Vui lòng điền đầy đủ thông tin hoặc đăng nhập lại.', 'error');
+            if (!blogId) {
+                setStatus('Vui lòng chọn một blog.', 'error');
+                return;
+            }
+            if (!title || !content) {
+                setStatus('Tiêu đề và nội dung không được để trống.', 'error');
+                return;
+            }
+            if (!token) {
+                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
                 return;
             }
 
@@ -283,7 +292,7 @@
                 
                 setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
                 postTitle.value = '';
-                postContent.value = '';
+                tinymce.get('post-content').setContent(''); // Xóa nội dung trong trình soạn thảo
 
             } catch (err) {
                 console.error('Lỗi khi đăng bài:', err);
@@ -293,12 +302,32 @@
             }
         }
 
+        // *** THÊM MỚI: Khởi tạo TinyMCE ***
+        function initializeTinyMCE() {
+            tinymce.init({
+                selector: 'textarea#post-content',
+                plugins: 'preview importcss searchreplace autolink autosave save directionality code visualblocks visualchars fullscreen image link media template codesample table charmap pagebreak nonbreaking anchor insertdatetime advlist lists wordcount help charmap quickbars emoticons',
+                menubar: 'file edit view insert format tools table help',
+                toolbar: 'undo redo | bold italic underline strikethrough | fontfamily fontsize blocks | alignleft aligncenter alignright alignjustify | outdent indent |  numlist bullist | forecolor backcolor removeformat | pagebreak | charmap emoticons | fullscreen  preview save print | insertfile image media template link anchor codesample | ltr rtl',
+                height: 500,
+                image_caption: true,
+                quickbars_selection_toolbar: 'bold italic | quicklink h2 h3 blockquote quickimage quicktable',
+                noneditable_class: 'mceNonEditable',
+                toolbar_mode: 'sliding',
+                contextmenu: 'link image table',
+                skin: 'oxide',
+                content_css: 'default',
+                content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:16px }'
+            });
+        }
+
         loginButton.addEventListener('click', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         publishButton.addEventListener('click', publishPost);
 
         window.onload = () => {
             fetchConfigAndInitialize();
+            initializeTinyMCE(); // Khởi tạo trình soạn thảo khi tải trang
         };
     </script>
 </body>
