@@ -83,13 +83,6 @@
     <script src="https://accounts.google.com/gsi/client"></script>
 
     <script type="text/javascript">
-        // =========================================================================
-        // BƯỚC 1: THAY THẾ CÁC GIÁ TRỊ NÀY
-        // Lấy các giá trị này từ Google Cloud Console của bạn
-        // Hướng dẫn: https://developers.google.com/blogger/docs/3.0/using#APIKey
-        // =========================================================================
-        const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com'; // <-- THAY THẾ BẰNG CLIENT ID CỦA BẠN
-        const API_KEY = 'YOUR_API_KEY'; // <-- THAY THẾ BẰNG API KEY CỦA BẠN
 
         // Scope cho phép ứng dụng quản lý bài đăng trên Blogger
         const SCOPES = 'https://www.googleapis.com/auth/blogger';
@@ -201,11 +194,12 @@
             }
         }
 
-        // Publish a new post
+        // Publish a new post (MODIFIED TO CALL OUR BACKEND)
         async function publishPost() {
             const blogId = blogSelector.value;
             const title = postTitle.value.trim();
             const content = postContent.value.trim();
+            const token = gapi.client.getToken(); // Lấy token xác thực
 
             if (!blogId) {
                 setStatus('Vui lòng chọn một blog.', 'error');
@@ -215,32 +209,45 @@
                 setStatus('Tiêu đề và nội dung không được để trống.', 'error');
                 return;
             }
+            if (!token) {
+                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
+                handleLogout();
+                return;
+            }
 
             setStatus('Đang đăng bài...', 'info');
             publishButton.disabled = true;
 
             try {
-                const postBody = {
-                    kind: 'blogger#post',
-                    blog: {
-                        id: blogId
+                // Gọi tới backend của chính bạn, không gọi trực tiếp Google nữa
+                const response = await fetch('/api/publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
                     },
-                    title: title,
-                    content: content
-                };
-
-                const response = await gapi.client.blogger.posts.insert({
-                    blogId: blogId,
-                    resource: postBody
+                    body: JSON.stringify({
+                        blogId: blogId,
+                        title: title,
+                        content: content,
+                        accessToken: token.access_token // Gửi token xác thực lên backend
+                    })
                 });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Hiển thị lỗi từ backend (đã bao gồm lỗi từ Google)
+                    const errorMessage = result.error?.message || JSON.stringify(result);
+                    throw new Error(errorMessage);
+                }
                 
-                setStatus(`Đăng bài thành công! <a href="${response.result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
+                setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
                 postTitle.value = '';
                 postContent.value = '';
 
             } catch (err) {
-                console.error('Error publishing post:', err);
-                setStatus(`Lỗi khi đăng bài: ${err.result.error.message}`, 'error');
+                console.error('Lỗi khi đăng bài:', err);
+                setStatus(`Lỗi khi đăng bài: ${err.message}`, 'error');
             } finally {
                 publishButton.disabled = false;
             }
