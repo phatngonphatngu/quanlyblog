@@ -10,68 +10,34 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .btn { @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200; }
-        .btn-primary { @apply bg-blue-600 hover:bg-blue-700; }
-        .btn-danger { @apply bg-red-600 hover:bg-red-700; }
-        .status-box { @apply mt-4 text-center font-medium p-4 rounded-lg; }
-        .status-success { @apply text-green-800 bg-green-100; }
-        .status-error { @apply text-red-800 bg-red-100; }
-        .status-info { @apply text-blue-800 bg-blue-100; }
+        /* Loại bỏ các lớp @apply, thay vào đó sử dụng class trực tiếp trong HTML */
         
-        /* *** CÁC THAY ĐỔI LỚN VỀ GIAO DIỆN *** */
-        #editor-fullscreen-container {
-            @apply fixed inset-0 bg-gray-100 p-4 sm:p-6 md:p-8 flex flex-col;
-            z-index: 50;
-        }
-        #editor-header {
-            @apply flex-shrink-0 flex items-center justify-between mb-4;
-        }
-        #editor-main {
-            @apply flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto;
-        }
-        #post-title-input {
-            @apply w-full text-2xl sm:text-3xl font-bold border-none focus:ring-0 p-2 mb-4 bg-transparent;
-        }
-        #labels-wrapper {
-            @apply relative mb-4;
-        }
-        #labels-input-container {
-            @apply flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-white;
-        }
-        .label-pill {
-            @apply flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full;
-        }
-        .label-pill button {
-            @apply bg-blue-200 hover:bg-blue-300 rounded-full p-0.5;
-        }
-        #labels-input {
-            @apply flex-grow border-none focus:ring-0 p-1;
-        }
-        #labels-suggestions {
-            @apply absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg;
-            z-index: 60;
-        }
-        .suggestion-item {
-            @apply px-4 py-2 cursor-pointer hover:bg-gray-100;
-        }
-        .ql-toolbar.ql-snow {
-            @apply rounded-t-lg border-gray-300;
+        /* Style cho Quill Editor để nó lấp đầy không gian */
+        #editor-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0; /* Fix cho flexbox overflow */
         }
         .ql-container.ql-snow {
-            @apply flex-grow rounded-b-lg border-gray-300;
+            flex-grow: 1;
+            overflow-y: auto;
+            border-bottom-left-radius: 0.75rem; /* 12px */
+            border-bottom-right-radius: 0.75rem; /* 12px */
         }
-        #editor {
-            height: 100%;
+        .ql-toolbar.ql-snow {
+            border-top-left-radius: 0.75rem; /* 12px */
+            border-top-right-radius: 0.75rem; /* 12px */
         }
     </style>
 </head>
 <body class="bg-gray-200">
 
-    <div id="auth-container" class="min-h-screen flex items-center justify-center">
-        <div class="text-center bg-white p-8 rounded-xl shadow-md max-w-sm w-full">
+    <div id="auth-container" class="min-h-screen flex items-center justify-center p-4">
+        <div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Trình Đăng bài Blogger</h1>
             <p id="auth-message" class="mb-4 text-gray-600">Đang tải cấu hình...</p>
-            <button id="login-button" class="w-full btn btn-primary inline-flex items-center justify-center" disabled>
+            <button id="login-button" class="w-full px-6 py-2 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled>
                 <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
             </button>
@@ -79,31 +45,31 @@
     </div>
 
     <div id="app-container" class="hidden">
-        <div id="editor-fullscreen-container">
-            <div id="editor-header">
-                <div class="flex items-center gap-4">
-                     <p>Blog: <strong id="blog-name" class="text-blue-600"></strong></p>
-                </div>
-                <div class="flex items-center gap-4">
+        <div id="editor-fullscreen-container" class="fixed inset-0 bg-gray-100 p-4 sm:p-6 md:p-8 flex flex-col" style="z-index: 50;">
+            <div id="editor-header" class="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+                <p class="flex-shrink-0">Blog: <strong id="blog-name" class="text-blue-600"></strong></p>
+                <div class="flex items-center gap-4 w-full sm:w-auto justify-end">
                     <button id="logout-button" class="text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
-                    <button id="publish-button" class="btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg px-8 py-3">
+                    <button id="publish-button" class="px-8 py-3 rounded-lg font-semibold text-white transition duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg flex-shrink-0">
                         🚀 Đăng bài
                     </button>
                 </div>
             </div>
-            <div id="editor-main">
-                <textarea id="post-title-input" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+            <div id="editor-main" class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto min-h-0">
+                <textarea id="post-title-input" class="w-full text-2xl sm:text-3xl font-bold border-none focus:ring-0 p-2 mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
                 
-                <div id="labels-wrapper">
-                    <div id="labels-input-container">
-                        <input id="labels-input" type="text" placeholder="Thêm nhãn...">
+                <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
+                    <div id="labels-input-container" class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-white">
+                        <input id="labels-input" type="text" placeholder="Thêm nhãn..." class="flex-grow border-none focus:ring-0 p-1">
                     </div>
-                    <div id="labels-suggestions" class="hidden"></div>
+                    <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden" style="z-index: 60;"></div>
                 </div>
 
-                <div id="editor" class="flex-grow"></div>
+                <div id="editor-wrapper">
+                     <div id="editor"></div>
+                </div>
             </div>
-             <div id="status-message" class="status-box flex-shrink-0"></div>
+             <div id="status-message" class="mt-4 text-center font-medium p-4 rounded-lg flex-shrink-0"></div>
         </div>
     </div>
 
@@ -139,11 +105,11 @@
 
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
-            statusMessage.className = 'status-box flex-shrink-0';
+            statusMessage.className = 'mt-4 text-center font-medium p-4 rounded-lg flex-shrink-0';
             switch (type) {
-                case 'success': statusMessage.classList.add('status-success'); break;
-                case 'error': statusMessage.classList.add('status-error'); break;
-                case 'info': statusMessage.classList.add('status-info'); break;
+                case 'success': statusMessage.classList.add('text-green-800', 'bg-green-100'); break;
+                case 'error': statusMessage.classList.add('text-red-800', 'bg-red-100'); break;
+                case 'info': statusMessage.classList.add('text-blue-800', 'bg-blue-100'); break;
             }
         }
         
@@ -282,14 +248,13 @@
         }
 
         function renderSelectedLabels() {
-            // Xóa các pill cũ
             labelsInputContainer.querySelectorAll('.label-pill').forEach(pill => pill.remove());
-            // Thêm lại các pill mới
             selectedLabels.forEach(label => {
                 const pill = document.createElement('span');
-                pill.className = 'label-pill';
+                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full label-pill';
                 pill.textContent = label;
                 const removeBtn = document.createElement('button');
+                removeBtn.className = 'bg-blue-200 hover:bg-blue-300 rounded-full p-0.5 leading-none';
                 removeBtn.innerHTML = '&times;';
                 removeBtn.onclick = () => {
                     selectedLabels.delete(label);
@@ -311,7 +276,7 @@
             if (filtered.length > 0) {
                 filtered.forEach(label => {
                     const item = document.createElement('div');
-                    item.className = 'suggestion-item';
+                    item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100 suggestion-item';
                     item.textContent = label;
                     item.onclick = () => {
                         selectedLabels.add(label);
