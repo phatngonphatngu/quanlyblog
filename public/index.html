@@ -206,7 +206,7 @@
             }
         }
 
-        // Fetch user info and their blogs
+        // Fetch user info and their blogs (với xử lý lỗi tốt hơn)
         async function fetchUserInfoAndBlogs() {
             try {
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
@@ -238,8 +238,20 @@
                     handleLogout();
                 }
             } catch (err) {
-                console.error('Error fetching data:', err);
-                setStatus(`Lỗi: ${err.result?.error?.message || 'Không thể lấy dữ liệu'}`, 'error');
+                // Cải thiện việc ghi log lỗi để chẩn đoán
+                console.error('Đã xảy ra lỗi khi lấy dữ liệu blog. Chi tiết lỗi:', err);
+                let errorMessage = 'Không thể lấy dữ liệu từ Google. Vui lòng kiểm tra lại cấu hình API trên Google Cloud và đảm bảo Blogger API đã được bật.';
+                
+                if (err.result && err.result.error) {
+                    errorMessage = `Lỗi từ Google: ${err.result.error.message}`;
+                } else if (err.message) {
+                    errorMessage = err.message;
+                } else {
+                    try {
+                        console.error('Cấu trúc lỗi không xác định:', JSON.stringify(err));
+                    } catch (e) { /* Bỏ qua lỗi stringify */ }
+                }
+                setStatus(`Lỗi: ${errorMessage}`, 'error');
                 handleLogout();
             }
         }
