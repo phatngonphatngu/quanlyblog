@@ -57,7 +57,7 @@
             }
         }
         
-        // *** LUỒNG XÁC THỰC ĐƯỢC TÁI CẤU TRÚC ***
+        // *** LUỒNG XÁC THỰC HOÀN CHỈNH ***
 
         // 1. Các hàm callback khi thư viện Google tải xong
         function gapiLoaded() {
@@ -82,7 +82,7 @@
             }
         }
 
-        // 3. Hàm khởi tạo chính - Đã được đơn giản hóa
+        // 3. Hàm khởi tạo chính - Hỗ trợ khôi phục phiên đăng nhập
         async function initializeApp() {
             try {
                 authMessage.textContent = 'Đang tải cấu hình...';
@@ -93,26 +93,30 @@
 
                 await gapi.client.load('oauth2', 'v2');
 
-                // Khởi tạo token client với callback chỉ xử lý trường hợp đăng nhập thành công
+                // Khởi tạo token client với một callback duy nhất, xử lý mọi trường hợp
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
-                        // Callback này chỉ được gọi sau khi người dùng nhấn nút và đăng nhập thành công
-                        if (tokenResponse && tokenResponse.access_token) {
-                            console.log("Đăng nhập thành công. Đang lấy thông tin người dùng.");
+                        // Callback này xử lý cả đăng nhập tự động và thủ công
+                        if (tokenResponse.error) {
+                            console.warn(`Lỗi xác thực: ${tokenResponse.error}. Cần đăng nhập thủ công.`);
+                            // Đây là trường hợp người dùng mới hoặc đăng nhập tự động thất bại
+                            // Kích hoạt nút để người dùng có thể nhấn vào
+                            authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+                            loginButton.disabled = false;
+                        } else if (tokenResponse.access_token) {
+                            console.log("Xác thực thành công. Đang lấy thông tin người dùng.");
+                            // Đăng nhập thành công (tự động hoặc thủ công)
                             gapi.client.setToken(tokenResponse);
-                            fetchUserInfoAndBlogs();
+                            fetchUserInfoAndBlogs(); // Hàm này sẽ cập nhật UI
                         }
-                        // Các trường hợp lỗi (người dùng đóng pop-up) sẽ được thư viện xử lý ngầm,
-                        // người dùng chỉ cần nhấn nút đăng nhập lại.
                     },
                 });
                 
-                // Thay vì cố gắng đăng nhập tự động, chúng ta kích hoạt nút đăng nhập ngay
-                authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
-                loginButton.disabled = false;
-                console.log("Ứng dụng đã sẵn sàng. Nút đăng nhập được kích hoạt.");
+                authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
+                // *** FIX: Cố gắng khôi phục phiên đăng nhập mà không hiển thị pop-up ***
+                tokenClient.requestAccessToken({ prompt: 'none' });
 
             } catch (error) {
                 console.error("LỖI KHỞI TẠO ỨNG DỤNG:", error);
@@ -121,7 +125,7 @@
             }
         }
 
-        // 4. Hàm lấy thông tin và chuyển giao diện
+        // 4. Hàm lấy thông tin và chuyển giao diện - ĐÃ TỐI ƯU HÓA
         async function fetchUserInfoAndBlogs() {
             try {
                 setStatus('Đang xác thực và tải dữ liệu...', 'info');
@@ -147,9 +151,14 @@
                 const blogs = blogData.items;
                 if (blogs && blogs.length > 0) {
                     selectedBlogId = blogs[0].id;
-                    await fetchAndStoreLabels(selectedBlogId);
-                    updateUI(true); // Chuyển sang giao diện chính
-                    setStatus('Sẵn sàng để tạo bài viết mới.', 'info');
+                    
+                    // *** TỐI ƯU HÓA: Hiển thị giao diện ngay lập tức ***
+                    updateUI(true); 
+                    setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn trong nền...', 'info');
+                    
+                    // *** Tải nhãn trong nền mà không chặn giao diện ***
+                    fetchAndStoreLabels(selectedBlogId); 
+
                 } else {
                     setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
                     handleLogout();
@@ -196,6 +205,7 @@
         }
 
         async function fetchAndStoreLabels(blogId) {
+            console.log("Bắt đầu tải nhãn trong nền...");
             const token = gapi.client.getToken();
             if (!token) return;
             try {
@@ -207,7 +217,10 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Lỗi không xác định.');
                 allAvailableLabels = data.labels || [];
+                console.log("Tải nhãn thành công!", allAvailableLabels);
+                setStatus('Sẵn sàng để tạo bài viết mới.', 'success');
             } catch (err) {
+                console.error("Lỗi khi tải nhãn trong nền:", err);
                 setStatus(`Lỗi khi tải nhãn: ${err.message}`, 'error');
             }
         }
