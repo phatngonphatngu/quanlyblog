@@ -19,7 +19,6 @@ app.use(express.static('public')); // Phục vụ file index.html
 // Endpoint cung cấp cấu hình cho frontend
 app.get('/api/config', (req, res) => {
     if (!CLIENT_ID) {
-        console.error("LỖI: Biến môi trường BLOGGER_CLIENT_ID chưa được thiết lập trên server.");
         return res.status(500).json({ error: 'Client ID không được cấu hình trên server.' });
     }
     res.json({ clientId: CLIENT_ID });
@@ -28,139 +27,128 @@ app.get('/api/config', (req, res) => {
 // Endpoint lấy danh sách blog
 app.post('/api/blogs', async (req, res) => {
     const { accessToken } = req.body;
-
-    if (!accessToken) {
-        return res.status(400).json({ error: 'Thiếu Access Token.' });
-    }
-    if (!API_KEY) {
-        console.error("LỖI: Biến môi trường BLOGGER_API_KEY chưa được thiết lập trên server.");
-        return res.status(500).json({ error: 'API Key không được cấu hình trên server.' });
-    }
+    if (!accessToken) return res.status(400).json({ error: 'Thiếu Access Token.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
 
     const bloggerApiUrl = `https://www.googleapis.com/blogger/v3/users/self/blogs?key=${API_KEY}`;
-
     try {
-        const response = await fetch(bloggerApiUrl, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
+        const response = await fetch(bloggerApiUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
         const data = await response.json();
-
-        if (!response.ok) {
-            console.error('Lỗi từ Google API khi lấy blogs:', data);
-            return res.status(response.status).json(data);
-        }
+        if (!response.ok) throw new Error(data.error?.message);
         res.status(200).json(data);
-
     } catch (error) {
-        console.error('Lỗi server nội bộ khi lấy blogs:', error);
-        res.status(500).json({ error: 'Đã có lỗi xảy ra trên server khi lấy blogs.' });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// === ENDPOINT MỚI: Lấy tất cả nhãn của một blog ===
+// Endpoint lấy tất cả nhãn của một blog
 app.post('/api/labels', async (req, res) => {
     const { accessToken, blogId } = req.body;
-
-    if (!accessToken || !blogId) {
-        return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
-    }
-    if (!API_KEY) {
-        return res.status(500).json({ error: 'API Key không được cấu hình trên server.' });
-    }
+    if (!accessToken || !blogId) return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
 
     let allLabels = new Set();
     let nextPageToken = null;
-
     try {
         do {
             let apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?fetchBodies=false&fields=nextPageToken,items/labels&maxResults=500&key=${API_KEY}`;
-            if (nextPageToken) {
-                apiUrl += `&pageToken=${nextPageToken}`;
-            }
-
-            const response = await fetch(apiUrl, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
+            if (nextPageToken) apiUrl += `&pageToken=${nextPageToken}`;
+            const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
             const data = await response.json();
-
-            if (!response.ok) {
-                console.error('Lỗi từ Google API khi lấy labels:', data);
-                throw new Error(data.error?.message || 'Không thể lấy danh sách bài đăng.');
-            }
-
-            if (data.items) {
-                data.items.forEach(post => {
-                    if (post.labels) {
-                        post.labels.forEach(label => allLabels.add(label));
-                    }
-                });
-            }
+            if (!response.ok) throw new Error(data.error?.message);
+            if (data.items) data.items.forEach(post => post.labels?.forEach(label => allLabels.add(label)));
             nextPageToken = data.nextPageToken;
         } while (nextPageToken);
-
         res.status(200).json({ labels: Array.from(allLabels).sort() });
-
     } catch (error) {
-        console.error('Lỗi server nội bộ khi lấy labels:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// *** MỚI: Endpoint để lấy danh sách bài viết (có phân trang) ***
+app.post('/api/posts', async (req, res) => {
+    const { accessToken, blogId, pageToken } = req.body;
+    if (!accessToken || !blogId) return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
+
+    let apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?key=${API_KEY}&fetchBodies=false&fields=nextPageToken,items(id,title,updated)&orderBy=updated`;
+    if (pageToken) {
+        apiUrl += `&pageToken=${pageToken}`;
+    }
+
+    try {
+        const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Không thể lấy danh sách bài đăng.');
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// *** MỚI: Endpoint để lấy nội dung một bài viết cụ thể ***
+app.post('/api/post/get', async (req, res) => {
+    const { accessToken, blogId, postId } = req.body;
+    if (!accessToken || !blogId || !postId) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
+
+    const apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/${postId}?key=${API_KEY}&fetchImages=true&fields=id,title,content,labels`;
+
+    try {
+        const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Không thể lấy nội dung bài đăng.');
+        res.status(200).json(data);
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
 
-// API Endpoint để đăng bài
-app.post('/api/publish', async (req, res) => {
+// API Endpoint để tạo bài viết mới (đổi tên từ /publish)
+app.post('/api/post/create', async (req, res) => {
     const { blogId, title, content, accessToken, labels } = req.body;
-
-    if (!blogId || !title || !content || !accessToken) {
-        return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
-    }
-    if (!API_KEY) {
-         console.error("LỖI: Biến môi trường BLOGGER_API_KEY chưa được thiết lập trên server.");
-         return res.status(500).json({ error: 'API Key không được cấu hình trên server.' });
-    }
+    if (!blogId || !title || !content || !accessToken) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
 
     const bloggerApiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?key=${API_KEY}`;
-
     try {
-        const postBody = {
-            kind: 'blogger#post',
-            title: title,
-            content: content,
-            labels: labels || []
-        };
-
+        const postBody = { kind: 'blogger#post', title, content, labels: labels || [] };
         const response = await fetch(bloggerApiUrl, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(postBody)
         });
-
         const data = await response.json();
-
-        if (!response.ok) {
-            console.error('Lỗi từ Google API khi đăng bài:', data);
-            return res.status(response.status).json(data);
-        }
+        if (!response.ok) throw new Error(data.error?.message);
         res.status(200).json(data);
-
     } catch (error) {
-        console.error('Lỗi server nội bộ khi đăng bài:', error);
-        res.status(500).json({ error: 'Đã có lỗi xảy ra trên server.' });
+        res.status(500).json({ error: error.message });
     }
 });
+
+// *** MỚI: Endpoint để cập nhật bài viết đã có ***
+app.patch('/api/post/update', async (req, res) => {
+    const { blogId, postId, title, content, accessToken, labels } = req.body;
+    if (!blogId || !postId || !title || !content || !accessToken) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
+
+    const apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/${postId}?key=${API_KEY}`;
+    try {
+        const postBody = { title, content, labels: labels || [] };
+        const response = await fetch(apiUrl, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(postBody)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Không thể cập nhật bài đăng.');
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
