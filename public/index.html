@@ -99,10 +99,17 @@
                 }
 
                 console.log("7. Đang khởi tạo initTokenClient");
+                
+                // Khai báo biến timeout ở đây để callback có thể truy cập
+                let silentLoginTimeout;
+
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
+                        // *** FIX: Xóa timeout ngay khi callback được thực thi ***
+                        clearTimeout(silentLoginTimeout);
+
                         console.log("9. Callback của initTokenClient được gọi với:", tokenResponse);
                         if (tokenResponse && tokenResponse.access_token) {
                             console.log("10a. Có access_token, đang gọi fetchUserInfoAndBlogs");
@@ -112,13 +119,26 @@
                             console.log("10b. Không có access_token, người dùng cần đăng nhập thủ công.");
                             authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                             loginButton.disabled = false;
-                            console.log("11b. Nút đăng nhập đã được kích hoạt.");
+                            console.log("11b. Nút đăng nhập đã được kích hoạt bởi callback.");
                         }
                     },
                 });
                 
                 authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
                 console.log("8. Đang gọi requestAccessToken({ prompt: 'none' })");
+
+                // *** FIX: Thêm timeout để xử lý trường hợp pop-up bị chặn ***
+                // Nếu callback không được gọi trong 4 giây, coi như đăng nhập tự động thất bại.
+                silentLoginTimeout = setTimeout(() => {
+                    console.warn("Timeout: Đăng nhập tự động quá lâu hoặc bị chặn. Kích hoạt đăng nhập thủ công.");
+                    // Kiểm tra lại để chắc chắn chưa đăng nhập
+                    if (!gapi.client.getToken()?.access_token) { 
+                        authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+                        loginButton.disabled = false;
+                        console.log("Nút đăng nhập được kích hoạt bởi timeout.");
+                    }
+                }, 4000); // 4 giây
+
                 tokenClient.requestAccessToken({ prompt: 'none' });
 
             } catch (error) {
