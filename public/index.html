@@ -136,7 +136,7 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
-                callback: tokenCallback, // Hàm này đã được định nghĩa ở trên
+                callback: tokenCallback,
             });
             gisInited = true;
             maybeEnableButtons();
@@ -149,24 +149,32 @@
             }
         }
 
-        // Tải cấu hình từ backend
+        // Tải cấu hình từ backend (với xử lý lỗi tốt hơn)
         async function fetchConfigAndInitialize() {
             try {
                 const response = await fetch('/api/config');
+                const responseText = await response.text(); // Đọc response dưới dạng text trước
+
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Lỗi khi tải cấu hình từ server.');
+                    // Nếu server trả về lỗi, hiển thị nội dung lỗi đó
+                    console.error("Server error response:", responseText);
+                    throw new Error(`Server trả về lỗi ${response.status}. Vui lòng kiểm tra log trên Render.`);
                 }
-                const config = await response.json();
+
+                const config = JSON.parse(responseText); // Thử chuyển đổi text sang JSON
                 
-                // Khởi tạo các thư viện Google với Client ID nhận được
                 gapi.load('client', initializeGapiClient);
                 initializeGisClient(config.clientId);
 
             } catch (error) {
-                console.error('Failed to fetch config:', error);
-                setStatus(`Không thể kết nối tới server: ${error.message}`, 'error');
-                authMessage.textContent = 'Lỗi kết nối server.';
+                console.error('Failed to fetch config or parse JSON:', error);
+                let displayError = error.message;
+                // Nếu lỗi là do không parse được JSON (tức là server trả về HTML)
+                if (error instanceof SyntaxError) {
+                    displayError = "Server đã trả về phản hồi không hợp lệ (HTML). Vui lòng kiểm tra log của server trên Render để tìm lỗi.";
+                }
+                setStatus(displayError, 'error');
+                authMessage.textContent = 'Lỗi kết nối hoặc cấu hình server.';
             }
         }
         
