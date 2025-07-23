@@ -92,33 +92,22 @@
         let gapiInited = false;
         let gisInited = false;
 
-        // Set status message
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
-            statusMessage.className = 'status-box'; // Reset classes
+            statusMessage.className = 'status-box';
             switch (type) {
-                case 'success':
-                    statusMessage.classList.add('status-success');
-                    break;
-                case 'error':
-                    statusMessage.classList.add('status-error');
-                    break;
-                case 'info':
-                    statusMessage.classList.add('status-info');
-                    break;
+                case 'success': statusMessage.classList.add('status-success'); break;
+                case 'error': statusMessage.classList.add('status-error'); break;
+                case 'info': statusMessage.classList.add('status-info'); break;
             }
         }
         
-        // Khởi tạo GAPI client (ĐÃ SỬA LỖI)
         async function initializeGapiClient() {
-            // Tải cả thư viện Blogger VÀ OAuth2 để lấy thông tin người dùng
-            await gapi.client.load('blogger', 'v3');
             await gapi.client.load('oauth2', 'v2');
             gapiInited = true;
             maybeEnableButtons();
         }
 
-        // Callback function after successful authentication
         async function tokenCallback(tokenResponse) {
             if (tokenResponse.error) {
                 console.error('Authentication error:', tokenResponse.error);
@@ -129,7 +118,6 @@
             await fetchUserInfoAndBlogs();
         }
 
-        // Khởi tạo GIS client
         function initializeGisClient(clientId) {
             if (!clientId) {
                 setStatus('Không thể tải cấu hình Client ID từ server.', 'error');
@@ -151,19 +139,16 @@
             }
         }
 
-        // Tải cấu hình từ backend (với xử lý lỗi tốt hơn)
         async function fetchConfigAndInitialize() {
             try {
                 const response = await fetch('/api/config');
                 const responseText = await response.text();
 
                 if (!response.ok) {
-                    console.error("Server error response:", responseText);
                     throw new Error(`Server trả về lỗi ${response.status}. Vui lòng kiểm tra log trên Render.`);
                 }
 
                 const config = JSON.parse(responseText);
-                
                 gapi.load('client', initializeGapiClient);
                 initializeGisClient(config.clientId);
 
@@ -178,7 +163,6 @@
             }
         }
         
-        // Update UI based on login state
         function updateUI(isLoggedIn) {
             if (isLoggedIn) {
                 authContainer.classList.add('hidden');
@@ -193,7 +177,6 @@
             }
         }
 
-        // Handle logout
         function handleLogout() {
             const token = gapi.client.getToken();
             if (token !== null) {
@@ -206,10 +189,10 @@
             }
         }
 
-        // Fetch user info and their blogs
+        // ĐÃ THAY ĐỔI: Lấy danh sách blog từ backend
         async function fetchUserInfoAndBlogs() {
             try {
-                // Lệnh này giờ sẽ hoạt động vì đã tải thư viện oauth2
+                // Bước 1: Lấy thông tin người dùng
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
                 const userEmail = profileResponse.result.email;
 
@@ -218,12 +201,28 @@
                     setTimeout(handleLogout, 3000); 
                     return;
                 }
-
                 userEmailElement.textContent = userEmail;
 
-                const response = await gapi.client.blogger.blogs.listByUser({ userId: 'self' });
-                const blogs = response.result.items;
+                // Bước 2: Lấy access token để gửi lên backend
+                const token = gapi.client.getToken();
+                if (!token) { throw new Error("Không tìm thấy token xác thực."); }
+
+                // Bước 3: Gọi đến backend của bạn để lấy danh sách blog
+                const backendResponse = await fetch('/api/blogs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token })
+                });
                 
+                const blogData = await backendResponse.json();
+
+                if (!backendResponse.ok) {
+                    const errorMessage = blogData.error?.message || JSON.stringify(blogData);
+                    throw new Error(`Lỗi từ server: ${errorMessage}`);
+                }
+
+                // Bước 4: Hiển thị danh sách blog
+                const blogs = blogData.items;
                 blogSelector.innerHTML = '';
                 if (blogs && blogs.length > 0) {
                     blogs.forEach(blog => {
@@ -239,42 +238,24 @@
                     handleLogout();
                 }
             } catch (err) {
-                console.error('Đã xảy ra lỗi khi lấy dữ liệu blog. Chi tiết lỗi:', err);
-                let errorMessage = 'Không thể lấy dữ liệu từ Google. Vui lòng kiểm tra lại cấu hình API trên Google Cloud và đảm bảo Blogger API đã được bật.';
-                
-                if (err.result && err.result.error) {
-                    errorMessage = `Lỗi từ Google: ${err.result.error.message}`;
-                } else if (err.message) {
-                    errorMessage = err.message;
-                }
-                setStatus(`Lỗi: ${errorMessage}`, 'error');
+                console.error('Đã xảy ra lỗi khi lấy dữ liệu. Chi tiết lỗi:', err);
+                setStatus(`Lỗi: ${err.message}`, 'error');
                 handleLogout();
             }
         }
         
-        // Handle login
         function handleLogin() {
             tokenClient.requestAccessToken({ prompt: 'consent' });
         }
 
-        // Publish a new post
         async function publishPost() {
             const blogId = blogSelector.value;
             const title = postTitle.value.trim();
             const content = postContent.value.trim();
             const token = gapi.client.getToken();
 
-            if (!blogId) {
-                setStatus('Vui lòng chọn một blog.', 'error');
-                return;
-            }
-            if (!title || !content) {
-                setStatus('Tiêu đề và nội dung không được để trống.', 'error');
-                return;
-            }
-            if (!token) {
-                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
-                handleLogout();
+            if (!blogId || !title || !content || !token) {
+                setStatus('Vui lòng điền đầy đủ thông tin hoặc đăng nhập lại.', 'error');
                 return;
             }
 
@@ -284,9 +265,7 @@
             try {
                 const response = await fetch('/api/publish', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         blogId: blogId,
                         title: title,
@@ -314,12 +293,10 @@
             }
         }
 
-        // Event Listeners
         loginButton.addEventListener('click', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         publishButton.addEventListener('click', publishPost);
 
-        // Load the libraries
         window.onload = () => {
             fetchConfigAndInitialize();
         };
