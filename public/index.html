@@ -82,7 +82,7 @@
             }
         }
 
-        // 3. Hàm khởi tạo chính - Đã được đơn giản hóa để đảm bảo không bị treo
+        // 3. Hàm khởi tạo chính - Hỗ trợ khôi phục phiên đăng nhập từ localStorage
         async function initializeApp() {
             try {
                 authMessage.textContent = 'Đang tải cấu hình...';
@@ -93,33 +93,48 @@
 
                 await gapi.client.load('oauth2', 'v2');
 
-                // Khởi tạo token client với callback chỉ xử lý trường hợp đăng nhập thành công
+                // *** NEW: Kiểm tra phiên đăng nhập đã lưu ***
+                const savedToken = localStorage.getItem('google_auth_token');
+                const savedExpiration = localStorage.getItem('google_auth_token_expiration');
+
+                if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
+                    console.log("Tìm thấy phiên đăng nhập hợp lệ. Đang khôi phục...");
+                    authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
+                    gapi.client.setToken({ access_token: savedToken });
+                    fetchUserInfoAndBlogs();
+                    return; // Khôi phục thành công, thoát khỏi hàm
+                }
+                
+                // Nếu không có phiên hợp lệ, tiếp tục với luồng đăng nhập thủ công
+                localStorage.clear(); // Dọn dẹp token cũ nếu có
+
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
-                        // Callback này chỉ được gọi sau khi người dùng nhấn nút và đăng nhập thành công
                         if (tokenResponse && tokenResponse.access_token) {
-                            console.log("Đăng nhập thành công. Đang lấy thông tin người dùng.");
+                            console.log("Đăng nhập thành công. Đang lưu phiên và lấy thông tin người dùng.");
+                            
+                            // *** NEW: Lưu token vào localStorage ***
+                            const expiresIn = (tokenResponse.expires_in || 3600) - 60; // Trừ 60s cho an toàn
+                            const expirationTime = Date.now() + expiresIn * 1000;
+                            localStorage.setItem('google_auth_token', tokenResponse.access_token);
+                            localStorage.setItem('google_auth_token_expiration', expirationTime);
+
                             gapi.client.setToken(tokenResponse);
                             fetchUserInfoAndBlogs();
                         }
-                        // Các trường hợp lỗi (người dùng đóng pop-up) sẽ được thư viện xử lý ngầm,
-                        // người dùng chỉ cần nhấn nút đăng nhập lại.
                     },
                 });
                 
-                // *** FIX TRIỆT ĐỂ: Không cố gắng đăng nhập tự động nữa. ***
-                // Thay vào đó, chúng ta kích hoạt nút đăng nhập ngay lập tức.
-                // Điều này tránh hoàn toàn lỗi treo do trình duyệt chặn pop-up.
                 authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                 loginButton.disabled = false;
-                console.log("Ứng dụng đã sẵn sàng. Nút đăng nhập được kích hoạt.");
+                console.log("Ứng dụng đã sẵn sàng cho đăng nhập thủ công.");
 
             } catch (error) {
                 console.error("LỖI KHỞI TẠO ỨNG DỤNG:", error);
                 authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
-                loginButton.disabled = false; // Luôn bật nút để người dùng có thể thử lại
+                loginButton.disabled = false;
             }
         }
 
@@ -150,11 +165,9 @@
                 if (blogs && blogs.length > 0) {
                     selectedBlogId = blogs[0].id;
                     
-                    // *** TỐI ƯU HÓA: Hiển thị giao diện ngay lập tức ***
                     updateUI(true); 
                     setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn trong nền...', 'info');
                     
-                    // *** Tải nhãn trong nền mà không chặn giao diện ***
                     fetchAndStoreLabels(selectedBlogId); 
 
                 } else {
@@ -179,6 +192,10 @@
         }
         
         function handleLogout() {
+            // *** NEW: Xóa token khỏi localStorage khi đăng xuất ***
+            localStorage.removeItem('google_auth_token');
+            localStorage.removeItem('google_auth_token_expiration');
+
             const token = gapi.client.getToken();
             if (token) {
                 google.accounts.oauth2.revoke(token.access_token, () => {
