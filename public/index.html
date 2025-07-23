@@ -73,7 +73,8 @@
     <script type="text/javascript">
         // Cấu hình sẽ được lấy từ server
         const ALLOWED_EMAIL = 'phatngonphatng@gmail.com';
-        const SCOPES = 'https://www.googleapis.com/auth/blogger';
+        // *** ĐÃ SỬA LỖI: Thêm scope để lấy thông tin email ***
+        const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // DOM Elements
         const loginButton = document.getElementById('login-button');
@@ -189,7 +190,6 @@
             }
         }
 
-        // ĐÃ THAY ĐỔI: Lấy danh sách blog từ backend
         async function fetchUserInfoAndBlogs() {
             try {
                 // Bước 1: Lấy thông tin người dùng
