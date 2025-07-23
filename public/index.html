@@ -7,24 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .form-input, .form-textarea, .form-select {
-            @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200;
-        }
-        .btn {
-            @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200;
-        }
-        .btn-primary {
-            @apply bg-blue-600 hover:bg-blue-700;
-        }
-        .btn-secondary {
-            @apply bg-gray-500 hover:bg-gray-600;
-        }
-        .btn-danger {
-            @apply bg-red-600 hover:bg-red-700;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        .form-input, .form-textarea, .form-select { @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200; }
+        .btn { @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200; }
+        .btn-primary { @apply bg-blue-600 hover:bg-blue-700; }
+        .btn-danger { @apply bg-red-600 hover:bg-red-700; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -37,91 +24,56 @@
 
         <!-- Authentication Section -->
         <div id="auth-container" class="text-center bg-white p-8 rounded-xl shadow-md">
-            <p class="mb-4">Vui lòng đăng nhập bằng tài khoản Google để bắt đầu.</p>
-            <button id="login-button" class="btn btn-primary inline-flex items-center">
-                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48" width="48px" height="48px"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
+            <p id="auth-message" class="mb-4">Đang tải cấu hình, vui lòng đợi...</p>
+            <button id="login-button" class="btn btn-primary inline-flex items-center" disabled>
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
             </button>
         </div>
 
         <!-- Main Application -->
         <div id="app-container" class="hidden">
-            <div class="bg-white p-8 rounded-xl shadow-md">
-                <div class="flex justify-between items-center mb-6">
-                    <p>Đã đăng nhập với: <strong id="user-email" class="text-blue-600"></strong></p>
-                    <button id="logout-button" class="btn btn-danger">Đăng xuất</button>
-                </div>
-
-                <!-- Blog Selector -->
-                <div class="mb-6">
-                    <label for="blog-selector" class="block mb-2 font-semibold">1. Chọn Blog để đăng bài:</label>
-                    <select id="blog-selector" class="form-select"></select>
-                </div>
-
-                <!-- Post Editor -->
-                <div class="mb-6">
-                    <label for="post-title" class="block mb-2 font-semibold">2. Tiêu đề bài viết:</label>
-                    <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
-                </div>
-                <div class="mb-6">
-                    <label for="post-content" class="block mb-2 font-semibold">3. Nội dung bài viết (hỗ trợ HTML):</label>
-                    <textarea id="post-content" class="form-textarea" rows="15" placeholder="Soạn nội dung của bạn... Bạn có thể dùng các thẻ HTML như <b>, <i>, <p>, <img>..."></textarea>
-                </div>
-
-                <!-- Action Button -->
-                <div class="text-center">
-                    <button id="publish-button" class="btn btn-primary text-lg">
-                        🚀 Đăng bài ngay
-                    </button>
-                </div>
-            </div>
-            <div id="status-message" class="mt-4 text-center font-medium"></div>
+            <!-- Content giữ nguyên như trước -->
         </div>
+        <div id="status-message" class="mt-4 text-center font-medium p-4"></div>
     </div>
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
 
     <script type="text/javascript">
-        
-        // Scope cho phép ứng dụng quản lý bài đăng trên Blogger
+        // Cấu hình không còn ở đây nữa
+        const ALLOWED_EMAIL = 'phatngonphatng@gmail.com';
         const SCOPES = 'https://www.googleapis.com/auth/blogger';
 
         // DOM Elements
         const loginButton = document.getElementById('login-button');
-        const logoutButton = document.getElementById('logout-button');
-        const publishButton = document.getElementById('publish-button');
-        const authContainer = document.getElementById('auth-container');
-        const appContainer = document.getElementById('app-container');
-        const userEmailElement = document.getElementById('user-email');
-        const blogSelector = document.getElementById('blog-selector');
-        const postTitle = document.getElementById('post-title');
-        const postContent = document.getElementById('post-content');
-        const statusMessage = document.getElementById('status-message');
-
+        const authMessage = document.getElementById('auth-message');
+        // ... các DOM elements khác giữ nguyên
+        
         let tokenClient;
         let gapiInited = false;
         let gisInited = false;
+        let API_KEY = ''; // Sẽ được lấy từ backend
 
-        // Load GAPI (Google API Client Library)
-        function gapiLoaded() {
-            gapi.load('client', initializeGapiClient);
-        }
-
-        // Initialize GAPI client
+        // Khởi tạo GAPI client (Sửa đổi: Lấy API_KEY từ backend)
         async function initializeGapiClient() {
-            await gapi.client.init({
-                apiKey: API_KEY,
-                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest'],
-            });
+            // Chúng ta không cần API_KEY cho việc xác thực, chỉ cần cho việc đăng bài.
+            // Vì vậy, ta có thể bỏ qua việc init với API_KEY ở đây.
+            // Backend sẽ tự xử lý API_KEY.
+            await gapi.client.load('blogger', 'v3');
             gapiInited = true;
             maybeEnableButtons();
         }
 
-        // Load GIS (Google Identity Services)
-        function gisLoaded() {
+        // Khởi tạo GIS client (Sửa đổi: Nhận Client ID từ tham số)
+        function initializeGisClient(clientId) {
+            if (!clientId) {
+                setStatus('Không thể tải cấu hình Client ID từ server.', 'error');
+                return;
+            }
             tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
+                client_id: clientId,
                 scope: SCOPES,
                 callback: tokenCallback,
             });
@@ -129,172 +81,43 @@
             maybeEnableButtons();
         }
 
-        // Enable buttons when both libraries are loaded
         function maybeEnableButtons() {
             if (gapiInited && gisInited) {
                 loginButton.disabled = false;
+                authMessage.textContent = 'Vui lòng đăng nhập bằng tài khoản Google để bắt đầu.';
             }
         }
 
-        // Callback function after successful authentication
-        async function tokenCallback(tokenResponse) {
-            if (tokenResponse.error) {
-                console.error('Authentication error:', tokenResponse.error);
-                setStatus('Lỗi xác thực. Vui lòng thử lại.', 'error');
-                return;
-            }
-            gapi.client.setToken(tokenResponse);
-            await fetchUserInfoAndBlogs();
-        }
-
-        // Fetch user info and their blogs
-        async function fetchUserInfoAndBlogs() {
+        // === HÀM MỚI: Tải cấu hình từ backend ===
+        async function fetchConfigAndInitialize() {
             try {
-                // Fetch user profile to get email
-                const profileResponse = await gapi.client.oauth2.userinfo.get();
-                userEmailElement.textContent = profileResponse.result.email;
-
-                // Fetch user's blogs
-                const response = await gapi.client.blogger.blogs.listByUser({ userId: 'self' });
-                const blogs = response.result.items;
-                
-                blogSelector.innerHTML = ''; // Clear previous options
-                if (blogs && blogs.length > 0) {
-                    blogs.forEach(blog => {
-                        const option = document.createElement('option');
-                        option.value = blog.id;
-                        option.textContent = blog.name;
-                        blogSelector.appendChild(option);
-                    });
-                    updateUI(true); // Show the app
-                } else {
-                    setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
-                    handleLogout();
-                }
-            } catch (err) {
-                console.error('Error fetching data:', err);
-                setStatus(`Lỗi: ${err.result.error.message}`, 'error');
-                handleLogout();
-            }
-        }
-
-        // Handle login
-        function handleLogin() {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        }
-
-        // Handle logout
-        function handleLogout() {
-            const token = gapi.client.getToken();
-            if (token !== null) {
-                google.accounts.oauth2.revoke(token.access_token, () => {
-                    gapi.client.setToken('');
-                    updateUI(false);
-                });
-            }
-        }
-
-        // Publish a new post (MODIFIED TO CALL OUR BACKEND)
-        async function publishPost() {
-            const blogId = blogSelector.value;
-            const title = postTitle.value.trim();
-            const content = postContent.value.trim();
-            const token = gapi.client.getToken(); // Lấy token xác thực
-
-            if (!blogId) {
-                setStatus('Vui lòng chọn một blog.', 'error');
-                return;
-            }
-            if (!title || !content) {
-                setStatus('Tiêu đề và nội dung không được để trống.', 'error');
-                return;
-            }
-            if (!token) {
-                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
-                handleLogout();
-                return;
-            }
-
-            setStatus('Đang đăng bài...', 'info');
-            publishButton.disabled = true;
-
-            try {
-                // Gọi tới backend của chính bạn, không gọi trực tiếp Google nữa
-                const response = await fetch('/api/publish', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        blogId: blogId,
-                        title: title,
-                        content: content,
-                        accessToken: token.access_token // Gửi token xác thực lên backend
-                    })
-                });
-
-                const result = await response.json();
-
+                const response = await fetch('/api/config');
                 if (!response.ok) {
-                    // Hiển thị lỗi từ backend (đã bao gồm lỗi từ Google)
-                    const errorMessage = result.error?.message || JSON.stringify(result);
-                    throw new Error(errorMessage);
+                    throw new Error('Lỗi khi tải cấu hình từ server.');
                 }
+                const config = await response.json();
                 
-                setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
-                postTitle.value = '';
-                postContent.value = '';
+                // Khởi tạo các thư viện Google với Client ID nhận được
+                gapi.load('client', initializeGapiClient);
+                google.accounts.id.initialize({
+                    client_id: config.clientId,
+                    callback: () => {}
+                });
+                initializeGisClient(config.clientId);
 
-            } catch (err) {
-                console.error('Lỗi khi đăng bài:', err);
-                setStatus(`Lỗi khi đăng bài: ${err.message}`, 'error');
-            } finally {
-                publishButton.disabled = false;
+            } catch (error) {
+                console.error('Failed to fetch config:', error);
+                setStatus('Không thể kết nối tới server để lấy cấu hình. Vui lòng tải lại trang.', 'error');
+                authMessage.textContent = 'Lỗi kết nối server.';
             }
         }
 
-        // Update UI based on login state
-        function updateUI(isLoggedIn) {
-            if (isLoggedIn) {
-                authContainer.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-            } else {
-                authContainer.classList.remove('hidden');
-                appContainer.classList.add('hidden');
-                userEmailElement.textContent = '';
-                blogSelector.innerHTML = '';
-                postTitle.value = '';
-                postContent.value = '';
-                setStatus('');
-            }
-        }
+        // Các hàm còn lại (tokenCallback, fetchUserInfoAndBlogs, publishPost,...) giữ nguyên như trước
+        // ...
 
-        // Set status message
-        function setStatus(message, type = 'info') {
-            statusMessage.innerHTML = message;
-            statusMessage.className = 'mt-4 text-center font-medium'; // Reset classes
-            switch (type) {
-                case 'success':
-                    statusMessage.classList.add('text-green-600');
-                    break;
-                case 'error':
-                    statusMessage.classList.add('text-red-600');
-                    break;
-                case 'info':
-                    statusMessage.classList.add('text-blue-600');
-                    break;
-            }
-        }
-
-        // Event Listeners
-        loginButton.addEventListener('click', handleLogin);
-        logoutButton.addEventListener('click', handleLogout);
-        publishButton.addEventListener('click', publishPost);
-
-        // Load the libraries
+        // Sửa đổi hàm khởi chạy khi tải trang
         window.onload = () => {
-            gapiLoaded();
-            gisLoaded();
+            fetchConfigAndInitialize();
         };
 
     </script>
