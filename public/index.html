@@ -78,7 +78,12 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <script type="text/javascript">
-        const ALLOWED_EMAIL = 'phatngonphatngu@gmail.com'; // Sửa thành email của bạn nếu cần
+        // *** THÊM EMAIL CỦA BẠN BÈ VÀO ĐÂY ***
+        const ALLOWED_EMAILS = [
+            'phatngonphatngu@gmail.com',
+            // 'emailbanbe1@gmail.com', 
+            // 'emailbanbe2@gmail.com'
+        ];
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // DOM Elements
@@ -127,6 +132,7 @@
                 await gapi.client.load('oauth2', 'v2');
 
                 // 2. Lấy cấu hình từ backend
+                authMessage.textContent = 'Đang tải cấu hình từ server...';
                 const response = await fetch('/api/config');
                 if (!response.ok) {
                     const errText = await response.text();
@@ -146,8 +152,6 @@
                             gapi.client.setToken(tokenResponse);
                             fetchUserInfoAndBlogs();
                         } else {
-                            // Lỗi này xảy ra khi silent login thất bại, là điều bình thường.
-                            // Chỉ cần kích hoạt nút đăng nhập để người dùng tự thao tác.
                             console.log('Silent login failed or user did not grant consent.');
                             authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                             loginButton.disabled = false;
@@ -156,6 +160,7 @@
                 });
 
                 // 4. Cố gắng lấy token một cách thầm lặng để duy trì phiên đăng nhập
+                authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
                 tokenClient.requestAccessToken({ prompt: 'none' });
 
             } catch (error) {
@@ -214,9 +219,10 @@
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
                 const userEmail = profileResponse.result.email;
 
-                if (userEmail.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
-                    setStatus(`Truy cập bị từ chối.`, 'error');
-                    setTimeout(handleLogout, 3000); 
+                const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+                if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
+                    setStatus(`Tài khoản ${userEmail} không được phép truy cập.`, 'error');
+                    setTimeout(handleLogout, 4000); 
                     return;
                 }
 
@@ -461,8 +467,14 @@
         });
 
         window.onload = () => {
-            initializeApp();
             initializeQuill();
+            // Đợi GSI client sẵn sàng trước khi khởi tạo
+            const checkGsi = setInterval(() => {
+                if (window.google && window.google.accounts) {
+                    clearInterval(checkGsi);
+                    initializeApp();
+                }
+            }, 100);
         };
     </script>
 </body>
