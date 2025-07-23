@@ -8,6 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <!-- *** THAY ĐỔI: Tải thư viện Google với callback *** -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
         #editor-wrapper { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
@@ -20,7 +23,7 @@
     <div id="auth-container" class="min-h-screen flex items-center justify-center p-4">
         <div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Trình Đăng bài Blogger</h1>
-            <p id="auth-message" class="mb-4 text-gray-600">Đang tải cấu hình...</p>
+            <p id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</p>
             <button id="login-button" class="w-full px-6 py-2 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled>
                 <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
@@ -74,14 +77,11 @@
         </div>
     </div>
 
-    <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-
     <script type="text/javascript">
         // *** THÊM EMAIL CỦA BẠN BÈ VÀO ĐÂY ***
         const ALLOWED_EMAILS = [
             'phatngonphatngu@gmail.com',
-            // 'emailbanbe1@gmail.com', 
+            'Khanhlinhahaha@gmail.com', 
             // 'emailbanbe2@gmail.com'
         ];
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
@@ -113,6 +113,8 @@
         let selectedLabels = new Set();
         let editingPostId = null;
         let postListPageToken = null;
+        let gapiReady = false;
+        let gisReady = false;
 
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
@@ -125,25 +127,34 @@
         }
         
         // *** LUỒNG XÁC THỰC MỚI, ĐÃ SỬA LỖI ***
+        function gapiLoaded() {
+            gapi.load('client', () => {
+                gapiReady = true;
+                tryInitApp();
+            });
+        }
+
+        function gisLoaded() {
+            gisReady = true;
+            tryInitApp();
+        }
+
+        function tryInitApp() {
+            if (gapiReady && gisReady) {
+                initializeApp();
+            }
+        }
+
         async function initializeApp() {
             try {
-                // 1. Tải GAPI client trước
-                await new Promise((resolve) => gapi.load('client', resolve));
                 await gapi.client.load('oauth2', 'v2');
 
-                // 2. Lấy cấu hình từ backend
                 authMessage.textContent = 'Đang tải cấu hình từ server...';
                 const response = await fetch('/api/config');
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`Server trả về lỗi ${response.status}: ${errText}`);
-                }
+                if (!response.ok) throw new Error(`Server trả về lỗi ${response.status}`);
                 const config = await response.json();
-                if (!config.clientId) {
-                    throw new Error("Client ID không được trả về từ server.");
-                }
+                if (!config.clientId) throw new Error("Client ID không được trả về từ server.");
 
-                // 3. Khởi tạo GIS Token Client với callback xử lý cả thành công và thất bại
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
@@ -152,19 +163,16 @@
                             gapi.client.setToken(tokenResponse);
                             fetchUserInfoAndBlogs();
                         } else {
-                            console.log('Silent login failed or user did not grant consent.');
                             authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                             loginButton.disabled = false;
                         }
                     },
                 });
 
-                // 4. Cố gắng lấy token một cách thầm lặng để duy trì phiên đăng nhập
                 authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
                 tokenClient.requestAccessToken({ prompt: 'none' });
 
             } catch (error) {
-                console.error('Lỗi khởi tạo ứng dụng:', error);
                 setStatus(error.message, 'error');
                 authMessage.textContent = 'Lỗi kết nối hoặc cấu hình server.';
             }
@@ -193,8 +201,14 @@
 
         function handleLogout() {
             const token = gapi.client.getToken();
-            if (token) google.accounts.oauth2.revoke(token.access_token, () => gapi.client.setToken(''));
-            updateUI(false);
+            if (token) {
+                google.accounts.oauth2.revoke(token.access_token, () => {
+                    gapi.client.setToken('');
+                    updateUI(false);
+                });
+            } else {
+                updateUI(false);
+            }
         }
 
         async function fetchAndStoreLabels(blogId) {
@@ -468,13 +482,6 @@
 
         window.onload = () => {
             initializeQuill();
-            // Đợi GSI client sẵn sàng trước khi khởi tạo
-            const checkGsi = setInterval(() => {
-                if (window.google && window.google.accounts) {
-                    clearInterval(checkGsi);
-                    initializeApp();
-                }
-            }, 100);
         };
     </script>
 </body>
