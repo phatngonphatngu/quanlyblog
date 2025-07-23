@@ -10,25 +10,9 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        /* Loại bỏ các lớp @apply, thay vào đó sử dụng class trực tiếp trong HTML */
-        
-        /* Style cho Quill Editor để nó lấp đầy không gian */
-        #editor-wrapper {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            min-height: 0; /* Fix cho flexbox overflow */
-        }
-        .ql-container.ql-snow {
-            flex-grow: 1;
-            overflow-y: auto;
-            border-bottom-left-radius: 0.75rem; /* 12px */
-            border-bottom-right-radius: 0.75rem; /* 12px */
-        }
-        .ql-toolbar.ql-snow {
-            border-top-left-radius: 0.75rem; /* 12px */
-            border-top-right-radius: 0.75rem; /* 12px */
-        }
+        #editor-wrapper { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
+        .ql-container.ql-snow { flex-grow: 1; overflow-y: auto; border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+        .ql-toolbar.ql-snow { border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; }
     </style>
 </head>
 <body class="bg-gray-200">
@@ -45,21 +29,25 @@
     </div>
 
     <div id="app-container" class="hidden">
-        <div id="editor-fullscreen-container" class="fixed inset-0 bg-gray-100 p-4 sm:p-6 md:p-8 flex flex-col" style="z-index: 50;">
-            <div id="editor-header" class="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
-                <p class="flex-shrink-0">Blog: <strong id="blog-name" class="text-blue-600"></strong></p>
+        <div class="fixed inset-0 bg-gray-100 p-4 sm:p-6 md:p-8 flex flex-col" style="z-index: 10;">
+            <header class="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+                <div class="flex items-center gap-4">
+                    <button id="new-post-button" class="px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:bg-gray-200">Bài viết mới</button>
+                    <button id="find-post-button" class="px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:bg-gray-200">Tìm bài viết</button>
+                </div>
                 <div class="flex items-center gap-4 w-full sm:w-auto justify-end">
                     <button id="logout-button" class="text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
-                    <button id="publish-button" class="px-8 py-3 rounded-lg font-semibold text-white transition duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg flex-shrink-0">
+                    <button id="save-post-button" class="px-8 py-3 rounded-lg font-semibold text-white transition duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg flex-shrink-0">
                         🚀 Đăng bài
                     </button>
                 </div>
-            </div>
-            <div id="editor-main" class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto min-h-0">
+            </header>
+            <main class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto min-h-0">
                 <textarea id="post-title-input" class="w-full text-2xl sm:text-3xl font-bold border-none focus:ring-0 p-2 mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
                 
                 <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
-                    <div id="labels-input-container" class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-white">
+                    <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-white">
+                        <div id="labels-pills-container" class="flex flex-wrap items-center gap-2"></div>
                         <input id="labels-input" type="text" placeholder="Thêm nhãn..." class="flex-grow border-none focus:ring-0 p-1">
                     </div>
                     <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden" style="z-index: 60;"></div>
@@ -68,10 +56,27 @@
                 <div id="editor-wrapper">
                      <div id="editor"></div>
                 </div>
-            </div>
+            </main>
              <div id="status-message" class="mt-4 text-center font-medium p-4 rounded-lg flex-shrink-0"></div>
         </div>
     </div>
+    
+    <!-- Modal tìm bài viết -->
+    <div id="find-post-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 100;">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4" style="height: 80vh;">
+            <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
+                <h2 class="text-xl font-bold">Tìm bài viết để sửa</h2>
+                <button id="close-modal-button" class="text-2xl font-bold leading-none">&times;</button>
+            </div>
+            <div id="post-list" class="flex-grow overflow-y-auto p-2">
+                <!-- Danh sách bài viết sẽ được chèn vào đây -->
+            </div>
+            <div id="modal-footer" class="p-4 border-t flex-shrink-0 text-center">
+                <button id="load-more-posts-button" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Tải thêm</button>
+            </div>
+        </div>
+    </div>
+
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
@@ -83,17 +88,22 @@
         // DOM Elements
         const loginButton = document.getElementById('login-button');
         const logoutButton = document.getElementById('logout-button');
-        const publishButton = document.getElementById('publish-button');
+        const savePostButton = document.getElementById('save-post-button');
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
-        const blogNameElement = document.getElementById('blog-name');
         const postTitleInput = document.getElementById('post-title-input');
         const labelsWrapper = document.getElementById('labels-wrapper');
-        const labelsInputContainer = document.getElementById('labels-input-container');
+        const labelsPillsContainer = document.getElementById('labels-pills-container');
         const labelsInput = document.getElementById('labels-input');
         const labelsSuggestions = document.getElementById('labels-suggestions');
         const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
+        const newPostButton = document.getElementById('new-post-button');
+        const findPostButton = document.getElementById('find-post-button');
+        const findPostModal = document.getElementById('find-post-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const postListContainer = document.getElementById('post-list');
+        const loadMorePostsButton = document.getElementById('load-more-posts-button');
         
         let tokenClient;
         let gapiInited = false;
@@ -102,6 +112,8 @@
         let selectedBlogId = null;
         let allAvailableLabels = [];
         let selectedLabels = new Set();
+        let editingPostId = null;
+        let postListPageToken = null;
 
         function setStatus(message, type = 'info') {
             statusMessage.innerHTML = message;
@@ -125,13 +137,13 @@
                 return;
             }
             gapi.client.setToken(tokenResponse);
-            await fetchUserInfoAndBlogs();
+            // Sửa lỗi đăng nhập 2 lần bằng setTimeout
+            setTimeout(() => fetchUserInfoAndBlogs(), 0);
         }
 
         function initializeGisClient(clientId) {
             if (!clientId) {
-                setStatus('Không thể tải cấu hình Client ID từ server.', 'error');
-                return;
+                setStatus('Không thể tải cấu hình Client ID từ server.', 'error'); return;
             }
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
@@ -158,14 +170,19 @@
                 gapi.load('client', initializeGapiClient);
                 initializeGisClient(config.clientId);
             } catch (error) {
-                console.error('Failed to fetch config:', error);
-                let displayError = error.message;
-                if (error instanceof SyntaxError) {
-                    displayError = "Lỗi server. Vui lòng kiểm tra log trên Render.";
-                }
-                setStatus(displayError, 'error');
+                setStatus(error.message, 'error');
                 authMessage.textContent = 'Lỗi kết nối hoặc cấu hình server.';
             }
+        }
+        
+        function updateUIForNewPost() {
+            editingPostId = null;
+            postTitleInput.value = '';
+            quill.setText('');
+            selectedLabels.clear();
+            renderSelectedLabels();
+            savePostButton.innerHTML = '🚀 Đăng bài';
+            setStatus('Bắt đầu bài viết mới.', 'info');
         }
         
         function updateUI(isLoggedIn) {
@@ -175,11 +192,7 @@
             } else {
                 authContainer.classList.remove('hidden');
                 appContainer.classList.add('hidden');
-                blogNameElement.textContent = '';
-                postTitleInput.value = '';
-                selectedLabels.clear();
-                renderSelectedLabels();
-                if(quill) quill.setText('');
+                updateUIForNewPost();
             }
         }
 
@@ -202,7 +215,6 @@
                 if (!response.ok) throw new Error(data.error || 'Lỗi không xác định.');
                 allAvailableLabels = data.labels || [];
             } catch (err) {
-                console.error("Lỗi khi tải nhãn:", err);
                 setStatus(`Lỗi khi tải nhãn: ${err.message}`, 'error');
             }
         }
@@ -232,26 +244,24 @@
                 const blogs = blogData.items;
                 if (blogs && blogs.length > 0) {
                     selectedBlogId = blogs[0].id;
-                    blogNameElement.textContent = blogs[0].name;
                     await fetchAndStoreLabels(selectedBlogId);
                     updateUI(true);
-                    setStatus('');
+                    setStatus('Sẵn sàng để tạo bài viết mới.', 'info');
                 } else {
                     setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
                     handleLogout();
                 }
             } catch (err) {
-                console.error('Lỗi khi lấy dữ liệu:', err);
                 setStatus(`Lỗi: ${err.message}`, 'error');
                 handleLogout();
             }
         }
 
         function renderSelectedLabels() {
-            labelsInputContainer.querySelectorAll('.label-pill').forEach(pill => pill.remove());
+            labelsPillsContainer.innerHTML = '';
             selectedLabels.forEach(label => {
                 const pill = document.createElement('span');
-                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full label-pill';
+                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full';
                 pill.textContent = label;
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'bg-blue-200 hover:bg-blue-300 rounded-full p-0.5 leading-none';
@@ -261,7 +271,7 @@
                     renderSelectedLabels();
                 };
                 pill.appendChild(removeBtn);
-                labelsInputContainer.insertBefore(pill, labelsInput);
+                labelsPillsContainer.appendChild(pill);
             });
         }
         
@@ -276,7 +286,7 @@
             if (filtered.length > 0) {
                 filtered.forEach(label => {
                     const item = document.createElement('div');
-                    item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100 suggestion-item';
+                    item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100';
                     item.textContent = label;
                     item.onclick = () => {
                         selectedLabels.add(label);
@@ -292,46 +302,117 @@
             }
         }
 
-        async function publishPost() {
+        async function fetchPostsForModal(isLoadMore = false) {
+            if (!isLoadMore) {
+                postListPageToken = null;
+                postListContainer.innerHTML = '';
+            }
+            loadMorePostsButton.disabled = true;
+            loadMorePostsButton.textContent = 'Đang tải...';
+
+            const token = gapi.client.getToken();
+            try {
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accessToken: token.access_token,
+                        blogId: selectedBlogId,
+                        pageToken: postListPageToken
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error?.message);
+
+                data.items?.forEach(post => {
+                    const postEl = document.createElement('div');
+                    postEl.className = 'p-3 border-b hover:bg-gray-100 cursor-pointer';
+                    postEl.innerHTML = `
+                        <p class="font-semibold">${post.title}</p>
+                        <p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>
+                    `;
+                    postEl.onclick = () => loadPostForEditing(post.id);
+                    postListContainer.appendChild(postEl);
+                });
+
+                postListPageToken = data.nextPageToken;
+                loadMorePostsButton.style.display = postListPageToken ? 'block' : 'none';
+            } catch (err) {
+                postListContainer.innerHTML = `<p class="text-red-500 p-4">Lỗi khi tải bài viết: ${err.message}</p>`;
+            } finally {
+                loadMorePostsButton.disabled = false;
+                loadMorePostsButton.textContent = 'Tải thêm';
+            }
+        }
+        
+        async function loadPostForEditing(postId) {
+            setStatus('Đang tải bài viết để sửa...', 'info');
+            findPostModal.classList.add('hidden');
+            const token = gapi.client.getToken();
+            try {
+                const response = await fetch('/api/post/get', {
+                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId })
+                });
+                const post = await response.json();
+                if (!response.ok) throw new Error(post.error?.message);
+
+                postTitleInput.value = post.title;
+                quill.root.innerHTML = post.content;
+                selectedLabels = new Set(post.labels || []);
+                renderSelectedLabels();
+                editingPostId = post.id;
+                savePostButton.innerHTML = '💾 Cập nhật';
+                setStatus(`Đang sửa bài viết: "${post.title}"`, 'info');
+            } catch (err) {
+                setStatus(`Lỗi khi tải bài viết: ${err.message}`, 'error');
+            }
+        }
+
+        async function savePost() {
             const title = postTitleInput.value.trim();
             const content = quill.root.innerHTML;
             const token = gapi.client.getToken();
 
             if (!selectedBlogId || !title || content === '<p><br></p>') {
-                setStatus('Vui lòng điền đầy đủ tiêu đề và nội dung.', 'error');
-                return;
+                setStatus('Vui lòng điền đầy đủ tiêu đề và nội dung.', 'error'); return;
             }
             if (!token) {
                 setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return;
             }
 
-            setStatus('Đang đăng bài...', 'info');
-            publishButton.disabled = true;
+            const isUpdating = !!editingPostId;
+            setStatus(isUpdating ? 'Đang cập nhật...' : 'Đang đăng bài...', 'info');
+            savePostButton.disabled = true;
+
+            const endpoint = isUpdating ? '/api/post/update' : '/api/post/create';
+            const method = isUpdating ? 'PATCH' : 'POST';
+            
+            const body = {
+                blogId: selectedBlogId,
+                title: title,
+                content: content,
+                accessToken: token.access_token,
+                labels: Array.from(selectedLabels)
+            };
+            if (isUpdating) {
+                body.postId = editingPostId;
+            }
 
             try {
-                const response = await fetch('/api/publish', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        blogId: selectedBlogId,
-                        title: title,
-                        content: content,
-                        accessToken: token.access_token,
-                        labels: Array.from(selectedLabels)
-                    })
-                });
+                const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
                 
-                setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
-                postTitleInput.value = '';
-                quill.setText('');
-                selectedLabels.clear();
-                renderSelectedLabels();
+                setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
+                if (!isUpdating) {
+                    updateUIForNewPost();
+                }
             } catch (err) {
-                setStatus(`Lỗi khi đăng bài: ${err.message}`, 'error');
+                setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
             } finally {
-                publishButton.disabled = false;
+                savePostButton.disabled = false;
             }
         }
 
@@ -353,7 +434,14 @@
         // Event Listeners
         loginButton.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: 'consent' }));
         logoutButton.addEventListener('click', handleLogout);
-        publishButton.addEventListener('click', publishPost);
+        savePostButton.addEventListener('click', savePost);
+        newPostButton.addEventListener('click', updateUIForNewPost);
+        findPostButton.addEventListener('click', () => {
+            findPostModal.classList.remove('hidden');
+            fetchPostsForModal();
+        });
+        closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
+        loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
         
         labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
         labelsInput.addEventListener('keydown', (e) => {
