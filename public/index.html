@@ -82,7 +82,7 @@
             }
         }
 
-        // 3. Hàm khởi tạo chính - Hỗ trợ khôi phục phiên đăng nhập
+        // 3. Hàm khởi tạo chính - Đã được đơn giản hóa để đảm bảo không bị treo
         async function initializeApp() {
             try {
                 authMessage.textContent = 'Đang tải cấu hình...';
@@ -93,30 +93,28 @@
 
                 await gapi.client.load('oauth2', 'v2');
 
-                // Khởi tạo token client với một callback duy nhất, xử lý mọi trường hợp
+                // Khởi tạo token client với callback chỉ xử lý trường hợp đăng nhập thành công
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
-                        // Callback này xử lý cả đăng nhập tự động và thủ công
-                        if (tokenResponse.error) {
-                            console.warn(`Lỗi xác thực: ${tokenResponse.error}. Cần đăng nhập thủ công.`);
-                            // Đây là trường hợp người dùng mới hoặc đăng nhập tự động thất bại
-                            // Kích hoạt nút để người dùng có thể nhấn vào
-                            authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
-                            loginButton.disabled = false;
-                        } else if (tokenResponse.access_token) {
-                            console.log("Xác thực thành công. Đang lấy thông tin người dùng.");
-                            // Đăng nhập thành công (tự động hoặc thủ công)
+                        // Callback này chỉ được gọi sau khi người dùng nhấn nút và đăng nhập thành công
+                        if (tokenResponse && tokenResponse.access_token) {
+                            console.log("Đăng nhập thành công. Đang lấy thông tin người dùng.");
                             gapi.client.setToken(tokenResponse);
-                            fetchUserInfoAndBlogs(); // Hàm này sẽ cập nhật UI
+                            fetchUserInfoAndBlogs();
                         }
+                        // Các trường hợp lỗi (người dùng đóng pop-up) sẽ được thư viện xử lý ngầm,
+                        // người dùng chỉ cần nhấn nút đăng nhập lại.
                     },
                 });
                 
-                authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
-                // *** FIX: Cố gắng khôi phục phiên đăng nhập mà không hiển thị pop-up ***
-                tokenClient.requestAccessToken({ prompt: 'none' });
+                // *** FIX TRIỆT ĐỂ: Không cố gắng đăng nhập tự động nữa. ***
+                // Thay vào đó, chúng ta kích hoạt nút đăng nhập ngay lập tức.
+                // Điều này tránh hoàn toàn lỗi treo do trình duyệt chặn pop-up.
+                authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+                loginButton.disabled = false;
+                console.log("Ứng dụng đã sẵn sàng. Nút đăng nhập được kích hoạt.");
 
             } catch (error) {
                 console.error("LỖI KHỞI TẠO ỨNG DỤNG:", error);
