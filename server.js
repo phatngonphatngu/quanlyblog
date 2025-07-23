@@ -7,17 +7,26 @@ require('dotenv').config(); // Để đọc biến môi trường khi chạy loc
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Lấy API Key từ biến môi trường của Render (hoặc file .env khi chạy local)
+// Lấy API Key và Client ID từ biến môi trường của Render
 const API_KEY = process.env.BLOGGER_API_KEY;
+const CLIENT_ID = process.env.BLOGGER_CLIENT_ID; // Biến môi trường mới
 
 // Cấu hình để nhận dữ liệu JSON và cho phép frontend gọi tới
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Phục vụ file index.html
 
-// API Endpoint để đăng bài
+// === ENDPOINT MỚI: Cung cấp cấu hình cho frontend ===
+app.get('/api/config', (req, res) => {
+    if (!CLIENT_ID) {
+        return res.status(500).json({ error: 'Client ID không được cấu hình trên server.' });
+    }
+    // Chỉ gửi Client ID, không gửi API Key
+    res.json({ clientId: CLIENT_ID });
+});
+
+// API Endpoint để đăng bài (giữ nguyên)
 app.post('/api/publish', async (req, res) => {
-    // Lấy dữ liệu từ frontend gửi lên
     const { blogId, title, content, accessToken } = req.body;
 
     if (!blogId || !title || !content || !accessToken) {
@@ -47,12 +56,10 @@ app.post('/api/publish', async (req, res) => {
         const data = await response.json();
 
         if (!response.ok) {
-            // Nếu có lỗi từ Google, gửi lại cho frontend
             console.error('Lỗi từ Google API:', data);
             return res.status(response.status).json(data);
         }
 
-        // Gửi lại kết quả thành công cho frontend
         res.status(200).json(data);
 
     } catch (error) {
