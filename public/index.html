@@ -61,25 +61,21 @@
         </div>
     </div>
     
-    <!-- Modal tìm bài viết -->
     <div id="find-post-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden" style="z-index: 100;">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4" style="height: 80vh;">
             <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
                 <h2 class="text-xl font-bold">Tìm bài viết để sửa</h2>
                 <button id="close-modal-button" class="text-2xl font-bold leading-none">&times;</button>
             </div>
-            <div id="post-list" class="flex-grow overflow-y-auto p-2">
-                <!-- Danh sách bài viết sẽ được chèn vào đây -->
-            </div>
+            <div id="post-list" class="flex-grow overflow-y-auto p-2"></div>
             <div id="modal-footer" class="p-4 border-t flex-shrink-0 text-center">
                 <button id="load-more-posts-button" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Tải thêm</button>
             </div>
         </div>
     </div>
 
-
     <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://accounts.google.com/gsi/client"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <script type="text/javascript">
         const ALLOWED_EMAIL = 'phatngonphatngu@gmail.com'; // Sửa thành email của bạn nếu cần
@@ -106,8 +102,6 @@
         const loadMorePostsButton = document.getElementById('load-more-posts-button');
         
         let tokenClient;
-        let gapiInited = false;
-        let gisInited = false;
         let quill;
         let selectedBlogId = null;
         let allAvailableLabels = [];
@@ -125,60 +119,56 @@
             }
         }
         
-        async function initializeGapiClient() {
-            await gapi.client.load('oauth2', 'v2');
-            gapiInited = true;
-            maybeEnableButtons();
-        }
-
-        async function tokenCallback(tokenResponse) {
-            if (tokenResponse.error) {
-                setStatus('Lỗi xác thực. Vui lòng thử lại.', 'error');
-                return;
-            }
-            gapi.client.setToken(tokenResponse);
-            // Sửa lỗi đăng nhập 2 lần bằng setTimeout
-            setTimeout(() => fetchUserInfoAndBlogs(), 0);
-        }
-
-        function initializeGisClient(clientId) {
-            if (!clientId) {
-                setStatus('Không thể tải cấu hình Client ID từ server.', 'error'); return;
-            }
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: SCOPES,
-                callback: tokenCallback,
-            });
-            gisInited = true;
-            maybeEnableButtons();
-        }
-
-        function maybeEnableButtons() {
-            if (gapiInited && gisInited) {
-                loginButton.disabled = false;
-                authMessage.textContent = 'Vui lòng đăng nhập bằng tài khoản Google.';
-            }
-        }
-
-        async function fetchConfigAndInitialize() {
+        // *** LUỒNG XÁC THỰC MỚI, ĐÃ SỬA LỖI ***
+        async function initializeApp() {
             try {
+                // 1. Tải GAPI client trước
+                await new Promise((resolve) => gapi.load('client', resolve));
+                await gapi.client.load('oauth2', 'v2');
+
+                // 2. Lấy cấu hình từ backend
                 const response = await fetch('/api/config');
-                const responseText = await response.text();
-                if (!response.ok) throw new Error(`Server trả về lỗi ${response.status}.`);
-                const config = JSON.parse(responseText);
-                gapi.load('client', initializeGapiClient);
-                initializeGisClient(config.clientId);
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Server trả về lỗi ${response.status}: ${errText}`);
+                }
+                const config = await response.json();
+                if (!config.clientId) {
+                    throw new Error("Client ID không được trả về từ server.");
+                }
+
+                // 3. Khởi tạo GIS Token Client với callback xử lý cả thành công và thất bại
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: config.clientId,
+                    scope: SCOPES,
+                    callback: (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            gapi.client.setToken(tokenResponse);
+                            fetchUserInfoAndBlogs();
+                        } else {
+                            // Lỗi này xảy ra khi silent login thất bại, là điều bình thường.
+                            // Chỉ cần kích hoạt nút đăng nhập để người dùng tự thao tác.
+                            console.log('Silent login failed or user did not grant consent.');
+                            authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+                            loginButton.disabled = false;
+                        }
+                    },
+                });
+
+                // 4. Cố gắng lấy token một cách thầm lặng để duy trì phiên đăng nhập
+                tokenClient.requestAccessToken({ prompt: 'none' });
+
             } catch (error) {
+                console.error('Lỗi khởi tạo ứng dụng:', error);
                 setStatus(error.message, 'error');
                 authMessage.textContent = 'Lỗi kết nối hoặc cấu hình server.';
             }
         }
-        
+
         function updateUIForNewPost() {
             editingPostId = null;
             postTitleInput.value = '';
-            quill.setText('');
+            if(quill) quill.setText('');
             selectedLabels.clear();
             renderSelectedLabels();
             savePostButton.innerHTML = '🚀 Đăng bài';
@@ -432,7 +422,11 @@
         }
 
         // Event Listeners
-        loginButton.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: 'consent' }));
+        loginButton.addEventListener('click', () => {
+            if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            }
+        });
         logoutButton.addEventListener('click', handleLogout);
         savePostButton.addEventListener('click', savePost);
         newPostButton.addEventListener('click', updateUIForNewPost);
@@ -467,7 +461,7 @@
         });
 
         window.onload = () => {
-            fetchConfigAndInitialize();
+            initializeApp();
             initializeQuill();
         };
     </script>
