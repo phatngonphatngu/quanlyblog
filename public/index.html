@@ -12,6 +12,10 @@
         .btn { @apply px-6 py-2 rounded-lg font-semibold text-white transition duration-200; }
         .btn-primary { @apply bg-blue-600 hover:bg-blue-700; }
         .btn-danger { @apply bg-red-600 hover:bg-red-700; }
+        .status-box { @apply mt-4 text-center font-medium p-4 rounded-lg; }
+        .status-success { @apply text-green-800 bg-green-100; }
+        .status-error { @apply text-red-800 bg-red-100; }
+        .status-info { @apply text-blue-800 bg-blue-100; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -33,40 +37,97 @@
 
         <!-- Main Application -->
         <div id="app-container" class="hidden">
-            <!-- Content giữ nguyên như trước -->
+            <div class="bg-white p-8 rounded-xl shadow-md">
+                <div class="flex justify-between items-center mb-6">
+                    <p>Đã đăng nhập với: <strong id="user-email" class="text-blue-600"></strong></p>
+                    <button id="logout-button" class="btn btn-danger">Đăng xuất</button>
+                </div>
+
+                <div class="mb-6">
+                    <label for="blog-selector" class="block mb-2 font-semibold">1. Chọn Blog để đăng bài:</label>
+                    <select id="blog-selector" class="form-select"></select>
+                </div>
+
+                <div class="mb-6">
+                    <label for="post-title" class="block mb-2 font-semibold">2. Tiêu đề bài viết:</label>
+                    <input type="text" id="post-title" class="form-input" placeholder="Nhập tiêu đề tại đây...">
+                </div>
+                <div class="mb-6">
+                    <label for="post-content" class="block mb-2 font-semibold">3. Nội dung bài viết (hỗ trợ HTML):</label>
+                    <textarea id="post-content" class="form-textarea" rows="15" placeholder="Soạn nội dung của bạn..."></textarea>
+                </div>
+
+                <div class="text-center">
+                    <button id="publish-button" class="btn btn-primary text-lg">
+                        🚀 Đăng bài ngay
+                    </button>
+                </div>
+            </div>
         </div>
-        <div id="status-message" class="mt-4 text-center font-medium p-4"></div>
+        <div id="status-message" class="status-box"></div>
     </div>
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
 
     <script type="text/javascript">
-        // Cấu hình không còn ở đây nữa
+        // Cấu hình sẽ được lấy từ server
         const ALLOWED_EMAIL = 'phatngonphatng@gmail.com';
         const SCOPES = 'https://www.googleapis.com/auth/blogger';
 
         // DOM Elements
         const loginButton = document.getElementById('login-button');
+        const logoutButton = document.getElementById('logout-button');
+        const publishButton = document.getElementById('publish-button');
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app-container');
+        const userEmailElement = document.getElementById('user-email');
+        const blogSelector = document.getElementById('blog-selector');
+        const postTitle = document.getElementById('post-title');
+        const postContent = document.getElementById('post-content');
+        const statusMessage = document.getElementById('status-message');
         const authMessage = document.getElementById('auth-message');
-        // ... các DOM elements khác giữ nguyên
         
         let tokenClient;
         let gapiInited = false;
         let gisInited = false;
-        let API_KEY = ''; // Sẽ được lấy từ backend
 
-        // Khởi tạo GAPI client (Sửa đổi: Lấy API_KEY từ backend)
+        // Set status message
+        function setStatus(message, type = 'info') {
+            statusMessage.innerHTML = message;
+            statusMessage.className = 'status-box'; // Reset classes
+            switch (type) {
+                case 'success':
+                    statusMessage.classList.add('status-success');
+                    break;
+                case 'error':
+                    statusMessage.classList.add('status-error');
+                    break;
+                case 'info':
+                    statusMessage.classList.add('status-info');
+                    break;
+            }
+        }
+        
+        // Khởi tạo GAPI client
         async function initializeGapiClient() {
-            // Chúng ta không cần API_KEY cho việc xác thực, chỉ cần cho việc đăng bài.
-            // Vì vậy, ta có thể bỏ qua việc init với API_KEY ở đây.
-            // Backend sẽ tự xử lý API_KEY.
             await gapi.client.load('blogger', 'v3');
             gapiInited = true;
             maybeEnableButtons();
         }
 
-        // Khởi tạo GIS client (Sửa đổi: Nhận Client ID từ tham số)
+        // Callback function after successful authentication
+        async function tokenCallback(tokenResponse) {
+            if (tokenResponse.error) {
+                console.error('Authentication error:', tokenResponse.error);
+                setStatus('Lỗi xác thực. Vui lòng thử lại.', 'error');
+                return;
+            }
+            gapi.client.setToken(tokenResponse);
+            await fetchUserInfoAndBlogs();
+        }
+
+        // Khởi tạo GIS client
         function initializeGisClient(clientId) {
             if (!clientId) {
                 setStatus('Không thể tải cấu hình Client ID từ server.', 'error');
@@ -75,7 +136,7 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
                 scope: SCOPES,
-                callback: tokenCallback,
+                callback: tokenCallback, // Hàm này đã được định nghĩa ở trên
             });
             gisInited = true;
             maybeEnableButtons();
@@ -88,38 +149,164 @@
             }
         }
 
-        // === HÀM MỚI: Tải cấu hình từ backend ===
+        // Tải cấu hình từ backend
         async function fetchConfigAndInitialize() {
             try {
                 const response = await fetch('/api/config');
                 if (!response.ok) {
-                    throw new Error('Lỗi khi tải cấu hình từ server.');
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Lỗi khi tải cấu hình từ server.');
                 }
                 const config = await response.json();
                 
                 // Khởi tạo các thư viện Google với Client ID nhận được
                 gapi.load('client', initializeGapiClient);
-                google.accounts.id.initialize({
-                    client_id: config.clientId,
-                    callback: () => {}
-                });
                 initializeGisClient(config.clientId);
 
             } catch (error) {
                 console.error('Failed to fetch config:', error);
-                setStatus('Không thể kết nối tới server để lấy cấu hình. Vui lòng tải lại trang.', 'error');
+                setStatus(`Không thể kết nối tới server: ${error.message}`, 'error');
                 authMessage.textContent = 'Lỗi kết nối server.';
             }
         }
+        
+        // Update UI based on login state
+        function updateUI(isLoggedIn) {
+            if (isLoggedIn) {
+                authContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+            } else {
+                authContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                userEmailElement.textContent = '';
+                blogSelector.innerHTML = '';
+                postTitle.value = '';
+                postContent.value = '';
+            }
+        }
 
-        // Các hàm còn lại (tokenCallback, fetchUserInfoAndBlogs, publishPost,...) giữ nguyên như trước
-        // ...
+        // Handle logout
+        function handleLogout() {
+            const token = gapi.client.getToken();
+            if (token !== null) {
+                google.accounts.oauth2.revoke(token.access_token, () => {
+                    gapi.client.setToken('');
+                    updateUI(false);
+                });
+            } else {
+                 updateUI(false);
+            }
+        }
 
-        // Sửa đổi hàm khởi chạy khi tải trang
+        // Fetch user info and their blogs
+        async function fetchUserInfoAndBlogs() {
+            try {
+                const profileResponse = await gapi.client.oauth2.userinfo.get();
+                const userEmail = profileResponse.result.email;
+
+                if (userEmail.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+                    setStatus(`Truy cập bị từ chối. Chỉ tài khoản <strong>${ALLOWED_EMAIL}</strong> mới được phép sử dụng.`, 'error');
+                    setTimeout(handleLogout, 3000); 
+                    return;
+                }
+
+                userEmailElement.textContent = userEmail;
+
+                const response = await gapi.client.blogger.blogs.listByUser({ userId: 'self' });
+                const blogs = response.result.items;
+                
+                blogSelector.innerHTML = '';
+                if (blogs && blogs.length > 0) {
+                    blogs.forEach(blog => {
+                        const option = document.createElement('option');
+                        option.value = blog.id;
+                        option.textContent = blog.name;
+                        blogSelector.appendChild(option);
+                    });
+                    updateUI(true);
+                    setStatus(''); // Xóa thông báo cũ khi thành công
+                } else {
+                    setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
+                    handleLogout();
+                }
+            } catch (err) {
+                console.error('Error fetching data:', err);
+                setStatus(`Lỗi: ${err.result?.error?.message || 'Không thể lấy dữ liệu'}`, 'error');
+                handleLogout();
+            }
+        }
+        
+        // Handle login
+        function handleLogin() {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        // Publish a new post
+        async function publishPost() {
+            const blogId = blogSelector.value;
+            const title = postTitle.value.trim();
+            const content = postContent.value.trim();
+            const token = gapi.client.getToken();
+
+            if (!blogId) {
+                setStatus('Vui lòng chọn một blog.', 'error');
+                return;
+            }
+            if (!title || !content) {
+                setStatus('Tiêu đề và nội dung không được để trống.', 'error');
+                return;
+            }
+            if (!token) {
+                setStatus('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', 'error');
+                handleLogout();
+                return;
+            }
+
+            setStatus('Đang đăng bài...', 'info');
+            publishButton.disabled = true;
+
+            try {
+                const response = await fetch('/api/publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        blogId: blogId,
+                        title: title,
+                        content: content,
+                        accessToken: token.access_token
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    const errorMessage = result.error?.message || JSON.stringify(result);
+                    throw new Error(errorMessage);
+                }
+                
+                setStatus(`Đăng bài thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
+                postTitle.value = '';
+                postContent.value = '';
+
+            } catch (err) {
+                console.error('Lỗi khi đăng bài:', err);
+                setStatus(`Lỗi khi đăng bài: ${err.message}`, 'error');
+            } finally {
+                publishButton.disabled = false;
+            }
+        }
+
+        // Event Listeners
+        loginButton.addEventListener('click', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+        publishButton.addEventListener('click', publishPost);
+
+        // Load the libraries
         window.onload = () => {
             fetchConfigAndInitialize();
         };
-
     </script>
 </body>
 </html>
