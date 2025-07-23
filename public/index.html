@@ -16,9 +16,9 @@
         .ql-toolbar.ql-snow { border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; }
     </style>
 
-    <!-- *** SỬA LỖI: Di chuyển toàn bộ script vào head để khắc phục ReferenceError *** -->
+    <!-- *** TỐI ƯU HÓA: Toàn bộ script được đặt trong head và quản lý tập trung *** -->
     <script type="text/javascript">
-        // *** THÊM EMAIL CỦA BẠN BÈ VÀO ĐÂY ***
+        // *** CẤU HÌNH ***
         const ALLOWED_EMAILS = [
             'phatngonphatngu@gmail.com',
             'Khanhlinhahaha@gmail.com', 
@@ -26,13 +26,7 @@
         ];
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
-        // DOM Elements (sẽ được gán giá trị sau khi DOM tải xong)
-        let loginButton, logoutButton, savePostButton, authContainer, appContainer,
-            postTitleInput, labelsWrapper, labelsPillsContainer, labelsInput,
-            labelsSuggestions, statusMessage, authMessage, newPostButton,
-            findPostButton, findPostModal, closeModalButton, postListContainer,
-            loadMorePostsButton;
-        
+        // Biến toàn cục
         let tokenClient;
         let quill;
         let selectedBlogId = null;
@@ -43,6 +37,14 @@
         let gapiReady = false;
         let gisReady = false;
 
+        // DOM Elements (sẽ được gán giá trị sau khi DOM tải xong)
+        let loginButton, logoutButton, savePostButton, authContainer, appContainer,
+            postTitleInput, labelsWrapper, labelsPillsContainer, labelsInput,
+            labelsSuggestions, statusMessage, authMessage, newPostButton,
+            findPostButton, findPostModal, closeModalButton, postListContainer,
+            loadMorePostsButton;
+
+        // Hàm tiện ích
         function setStatus(message, type = 'info') {
             if (statusMessage) {
                 statusMessage.innerHTML = message;
@@ -55,6 +57,9 @@
             }
         }
         
+        // *** LUỒNG XÁC THỰC ĐƯỢC TÁI CẤU TRÚC ***
+
+        // 1. Các hàm callback khi thư viện Google tải xong
         function gapiLoaded() {
             gapi.load('client', () => {
                 console.log("Thư viện GAPI client đã tải xong.");
@@ -69,6 +74,7 @@
             tryInitApp();
         }
 
+        // 2. Cố gắng khởi tạo ứng dụng khi cả 2 thư viện đã sẵn sàng
         function tryInitApp() {
             if (gapiReady && gisReady) {
                 console.log("Cả 2 thư viện đã sẵn sàng. Bắt đầu initializeApp.");
@@ -76,96 +82,89 @@
             }
         }
 
+        // 3. Hàm khởi tạo chính
         async function initializeApp() {
-            console.log("1. Bắt đầu initializeApp");
             try {
-                console.log("2. Đang chờ gapi.client.load('oauth2', 'v2')");
-                await gapi.client.load('oauth2', 'v2');
-                console.log("3. gapi.client.load thành công.");
-
-                authMessage.textContent = 'Đang tải cấu hình từ server...';
-                console.log("4. Đang fetch /api/config");
+                authMessage.textContent = 'Đang tải cấu hình...';
                 const response = await fetch('/api/config');
-                console.log("5. Nhận được phản hồi từ /api/config", response);
-                if (!response.ok) {
-                    console.error("Lỗi fetch /api/config: Server trả về status", response.status);
-                    throw new Error(`Server trả về lỗi ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
                 const config = await response.json();
-                console.log("6. Nhận được config từ server:", config);
-                if (!config.clientId) {
-                    console.error("Lỗi cấu hình: Không có clientId trong phản hồi.");
-                    throw new Error("Client ID không được trả về từ server.");
-                }
+                if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
 
-                console.log("7. Đang khởi tạo initTokenClient");
-                
-                // Khai báo biến timeout ở đây để callback có thể truy cập
-                let silentLoginTimeout;
+                await gapi.client.load('oauth2', 'v2');
 
+                // Khởi tạo token client với một callback duy nhất, xử lý mọi trường hợp
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: config.clientId,
                     scope: SCOPES,
                     callback: (tokenResponse) => {
-                        // *** FIX: Xóa timeout ngay khi callback được thực thi ***
-                        clearTimeout(silentLoginTimeout);
-
-                        console.log("9. Callback của initTokenClient được gọi với:", tokenResponse);
-                        if (tokenResponse && tokenResponse.access_token) {
-                            console.log("10a. Có access_token, đang gọi fetchUserInfoAndBlogs");
-                            gapi.client.setToken(tokenResponse);
-                            fetchUserInfoAndBlogs();
-                        } else {
-                            console.log("10b. Không có access_token, người dùng cần đăng nhập thủ công.");
+                        // Callback này xử lý cả đăng nhập tự động và thủ công
+                        if (tokenResponse.error) {
+                            console.warn(`Lỗi xác thực: ${tokenResponse.error}. Cần đăng nhập thủ công.`);
+                            // Đây là trường hợp người dùng mới hoặc đăng nhập tự động thất bại
+                            // Kích hoạt nút để người dùng có thể nhấn vào
                             authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                             loginButton.disabled = false;
-                            console.log("11b. Nút đăng nhập đã được kích hoạt bởi callback.");
+                        } else if (tokenResponse.access_token) {
+                            console.log("Xác thực thành công. Đang lấy thông tin người dùng.");
+                            // Đăng nhập thành công (tự động hoặc thủ công)
+                            gapi.client.setToken(tokenResponse);
+                            fetchUserInfoAndBlogs(); // Hàm này sẽ cập nhật UI
                         }
                     },
                 });
                 
                 authMessage.textContent = 'Đang kiểm tra phiên đăng nhập...';
-                console.log("8. Đang gọi requestAccessToken({ prompt: 'none' })");
-
-                // *** FIX: Thêm timeout để xử lý trường hợp pop-up bị chặn ***
-                // Nếu callback không được gọi trong 4 giây, coi như đăng nhập tự động thất bại.
-                silentLoginTimeout = setTimeout(() => {
-                    console.warn("Timeout: Đăng nhập tự động quá lâu hoặc bị chặn. Kích hoạt đăng nhập thủ công.");
-                    // Kiểm tra lại để chắc chắn chưa đăng nhập
-                    if (!gapi.client.getToken()?.access_token) { 
-                        authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
-                        loginButton.disabled = false;
-                        console.log("Nút đăng nhập được kích hoạt bởi timeout.");
-                    }
-                }, 4000); // 4 giây
-
+                // Cố gắng đăng nhập tự động mà không hiển thị pop-up
                 tokenClient.requestAccessToken({ prompt: 'none' });
 
             } catch (error) {
-                console.error("LỖI LỚN trong khối initializeApp:", error);
-                authMessage.innerHTML = `
-                    <p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình server!</p>
-                    <p class="text-sm text-gray-500 mt-2">
-                        Vui lòng nhấn F12, xem tab "Console" và "Network" để biết chi tiết.
-                        <br>
-                        Lỗi có thể do biến môi trường trên Render chưa được cài đặt đúng.
-                    </p>
-                `;
+                console.error("LỖI KHỞI TẠO ỨNG DỤNG:", error);
+                authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
                 loginButton.disabled = false;
-                console.log("Nút đăng nhập đã được kích hoạt trong khối catch.");
             }
         }
 
-        function updateUIForNewPost() {
-            editingPostId = null;
-            postTitleInput.value = '';
-            if(quill) quill.setText('');
-            selectedLabels.clear();
-            renderSelectedLabels();
-            savePostButton.innerHTML = '🚀 Đăng bài';
-            setStatus('Bắt đầu bài viết mới.', 'info');
+        // 4. Hàm lấy thông tin và chuyển giao diện
+        async function fetchUserInfoAndBlogs() {
+            try {
+                setStatus('Đang xác thực và tải dữ liệu...', 'info');
+                const profileResponse = await gapi.client.oauth2.userinfo.get();
+                const userEmail = profileResponse.result.email;
+
+                const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+                if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
+                    setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
+                    setTimeout(handleLogout, 4000); 
+                    return;
+                }
+
+                const token = gapi.client.getToken();
+                const backendResponse = await fetch('/api/blogs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token })
+                });
+                const blogData = await backendResponse.json();
+                if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
+
+                const blogs = blogData.items;
+                if (blogs && blogs.length > 0) {
+                    selectedBlogId = blogs[0].id;
+                    await fetchAndStoreLabels(selectedBlogId);
+                    updateUI(true); // Chuyển sang giao diện chính
+                    setStatus('Sẵn sàng để tạo bài viết mới.', 'info');
+                } else {
+                    setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
+                    handleLogout();
+                }
+            } catch (err) {
+                setStatus(`Lỗi khi tải dữ liệu: ${err.message}`, 'error');
+                handleLogout();
+            }
         }
-        
+
+        // Các hàm cập nhật giao diện và xử lý sự kiện
         function updateUI(isLoggedIn) {
             if (isLoggedIn) {
                 authContainer.classList.add('hidden');
@@ -173,10 +172,9 @@
             } else {
                 authContainer.classList.remove('hidden');
                 appContainer.classList.add('hidden');
-                updateUIForNewPost();
             }
         }
-
+        
         function handleLogout() {
             const token = gapi.client.getToken();
             if (token) {
@@ -189,6 +187,16 @@
             }
             loginButton.disabled = false;
             authMessage.textContent = 'Bạn đã đăng xuất.';
+        }
+
+        function updateUIForNewPost() {
+            editingPostId = null;
+            postTitleInput.value = '';
+            if(quill) quill.setText('');
+            selectedLabels.clear();
+            renderSelectedLabels();
+            savePostButton.innerHTML = '🚀 Đăng bài';
+            setStatus('Bắt đầu bài viết mới.', 'info');
         }
 
         async function fetchAndStoreLabels(blogId) {
@@ -205,45 +213,6 @@
                 allAvailableLabels = data.labels || [];
             } catch (err) {
                 setStatus(`Lỗi khi tải nhãn: ${err.message}`, 'error');
-            }
-        }
-
-        async function fetchUserInfoAndBlogs() {
-            try {
-                const profileResponse = await gapi.client.oauth2.userinfo.get();
-                const userEmail = profileResponse.result.email;
-
-                const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
-                if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
-                    setStatus(`Tài khoản ${userEmail} không được phép truy cập.`, 'error');
-                    setTimeout(handleLogout, 4000); 
-                    return;
-                }
-
-                const token = gapi.client.getToken();
-                if (!token) throw new Error("Không tìm thấy token xác thực.");
-
-                const backendResponse = await fetch('/api/blogs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accessToken: token.access_token })
-                });
-                const blogData = await backendResponse.json();
-                if (!backendResponse.ok) throw new Error(`Lỗi từ server: ${blogData.error?.message}`);
-
-                const blogs = blogData.items;
-                if (blogs && blogs.length > 0) {
-                    selectedBlogId = blogs[0].id;
-                    await fetchAndStoreLabels(selectedBlogId);
-                    updateUI(true);
-                    setStatus('Sẵn sàng để tạo bài viết mới.', 'info');
-                } else {
-                    setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
-                    handleLogout();
-                }
-            } catch (err) {
-                setStatus(`Lỗi: ${err.message}`, 'error');
-                handleLogout();
             }
         }
 
@@ -423,6 +392,7 @@
         
         // Gán giá trị cho DOM elements và thêm event listeners sau khi DOM đã tải xong
         document.addEventListener('DOMContentLoaded', () => {
+            // Gán biến
             loginButton = document.getElementById('login-button');
             logoutButton = document.getElementById('logout-button');
             savePostButton = document.getElementById('save-post-button');
@@ -442,10 +412,13 @@
             postListContainer = document.getElementById('post-list');
             loadMorePostsButton = document.getElementById('load-more-posts-button');
 
+            // Khởi tạo Quill Editor
             initializeQuill();
 
+            // Gán sự kiện
             loginButton.addEventListener('click', () => {
                 if (tokenClient) {
+                    // Hiển thị pop-up để người dùng chọn tài khoản
                     tokenClient.requestAccessToken({ prompt: 'consent' });
                 }
             });
@@ -473,7 +446,7 @@
                 }
             });
             document.addEventListener('click', (e) => {
-                if (!labelsWrapper.contains(e.target)) {
+                if (labelsWrapper && !labelsWrapper.contains(e.target)) {
                     labelsSuggestions.classList.add('hidden');
                 }
             });
