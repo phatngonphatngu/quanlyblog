@@ -22,7 +22,7 @@
         const ALLOWED_EMAILS = [
             'phatngonphatngu@gmail.com',
             'Khanhlinhahaha@gmail.com', 
-            // 'emailbanbe2@gmail.com'
+            'phamduongnhung@gmail.com'
         ];
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
@@ -191,22 +191,18 @@
             }
         }
         
-        // *** FIX: Logout sẽ tải lại trang để đảm bảo trạng thái sạch ***
         function handleLogout() {
             localStorage.clear(); // Xóa tất cả token đã lưu
             const token = gapi.client.getToken();
             if (token) {
                 google.accounts.oauth2.revoke(token.access_token, () => {
-                    // Sau khi thu hồi token, tải lại trang để reset hoàn toàn
                     location.reload();
                 });
             } else {
-                // Nếu không có token, chỉ cần tải lại trang
                 location.reload();
             }
         }
 
-        // *** FIX: Xóa setStatus để không ghi đè thông báo thành công ***
         function updateUIForNewPost() {
             editingPostId = null;
             postTitleInput.value = '';
@@ -439,13 +435,16 @@
             // Gán sự kiện
             loginButton.addEventListener('click', () => {
                 if (tokenClient) {
-                    // Hiển thị pop-up để người dùng chọn tài khoản
-                    tokenClient.requestAccessToken({ prompt: 'consent' });
+                    // *** FIX: Không yêu cầu cấp quyền mỗi lần, để Google tự quyết định ***
+                    tokenClient.requestAccessToken({});
                 }
             });
             logoutButton.addEventListener('click', handleLogout);
             savePostButton.addEventListener('click', savePost);
-            newPostButton.addEventListener('click', updateUIForNewPost);
+            newPostButton.addEventListener('click', () => {
+                updateUIForNewPost();
+                setStatus('Bắt đầu bài viết mới.', 'info');
+            });
             findPostButton.addEventListener('click', () => {
                 findPostModal.classList.remove('hidden');
                 fetchPostsForModal();
