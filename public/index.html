@@ -70,22 +70,41 @@
         // Biến DOM Elements
         let loginButton, logoutButton, savePostButton, authContainer, appContainer,
             postTitleInput, labelsWrapper, labelsPillsContainer, labelsInput,
-            labelsSuggestions, statusMessage, authMessage, newPostButton,
+            labelsSuggestions, authMessage, newPostButton,
             findPostButton, findPostModal, closeModalButton, postListContainer,
             loadMorePostsButton;
 
-        // Hàm tiện ích
-        function setStatus(message, type = 'info') {
-            const statusEl = document.getElementById('status-message');
-            if (statusEl) {
-                statusEl.innerHTML = message;
-                statusEl.className = 'mt-4 text-center font-medium p-3 md:p-4 rounded-lg flex-shrink-0 text-sm md:text-base';
-                switch (type) {
-                    case 'success': statusEl.classList.add('text-green-800', 'bg-green-100'); break;
-                    case 'error': statusEl.classList.add('text-red-800', 'bg-red-100'); break;
-                    case 'info': statusEl.classList.add('text-blue-800', 'bg-blue-100'); break;
-                }
+        // Hàm tiện ích cho thông báo nổi
+        function setStatus(message, type = 'info', duration = 4000) {
+            const toast = document.getElementById('floating-toast');
+            const toastContent = document.getElementById('toast-content');
+            if (!toast || !toastContent) return;
+
+            // Xóa timeout cũ nếu có
+            if (toast.dataset.timeoutId) {
+                clearTimeout(parseInt(toast.dataset.timeoutId));
             }
+
+            // Đặt nội dung và màu sắc
+            toastContent.innerHTML = message;
+            toastContent.className = 'p-4 rounded-lg shadow-lg text-white font-medium text-center'; // Reset classes
+            switch (type) {
+                case 'success': toastContent.classList.add('bg-green-500'); break;
+                case 'error': toastContent.classList.add('bg-red-500'); break;
+                case 'info': default: toastContent.classList.add('bg-blue-500'); break;
+            }
+
+            // Hiển thị thông báo
+            toast.style.transform = 'translate(-50%, 20px)';
+            toast.style.opacity = '1';
+
+            // Đặt timeout để ẩn đi
+            const timeoutId = setTimeout(() => {
+                toast.style.transform = 'translate(-50%, -120%)';
+                toast.style.opacity = '0';
+            }, duration);
+            
+            toast.dataset.timeoutId = timeoutId.toString();
         }
         
         // *** LUỒNG XÁC THỰC ***
@@ -344,7 +363,7 @@
                 const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
-                setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-blue-600 underline">Xem bài viết</a>`, 'success');
+                setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-white underline">Xem bài viết</a>`, 'success');
                 if (!isUpdating) updateUIForNewPost();
             } catch (err) {
                 setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
@@ -411,7 +430,6 @@
             labelsPillsContainer = document.getElementById('labels-pills-container');
             labelsInput = document.getElementById('labels-input');
             labelsSuggestions = document.getElementById('labels-suggestions');
-            statusMessage = document.getElementById('status-message');
             authMessage = document.getElementById('auth-message');
             newPostButton = document.getElementById('new-post-button');
             findPostButton = document.getElementById('find-post-button');
@@ -467,6 +485,13 @@
 </head>
 <body class="bg-[#fffbbe]">
 
+    <!-- Thông báo nổi -->
+    <div id="floating-toast" class="fixed top-0 left-1/2 w-full max-w-md p-4 z-[200] transition-all duration-300 ease-in-out opacity-0" style="transform: translate(-50%, -120%);">
+        <div id="toast-content" class="p-4 rounded-lg shadow-lg text-white font-medium text-center">
+            <!-- Nội dung được chèn bằng JS -->
+        </div>
+    </div>
+
     <!-- Màn hình đăng nhập -->
     <div id="auth-container" class="min-h-screen flex items-center justify-center p-4">
         <div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
@@ -498,7 +523,7 @@
             
             <!-- Vùng làm việc chính -->
             <main class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto min-h-0">
-                <textarea id="post-title-input" class="w-full text-xl md:text-2xl font-bold border-none focus:ring-0 p-2 mb-2 md:mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+                <textarea id="post-title-input" class="w-full text-lg md:text-xl font-bold border-none focus:ring-0 p-2 mb-2 md:mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
                 
                 <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
                     <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50">
@@ -512,12 +537,15 @@
                      <div id="editor"></div>
                 </div>
             </main>
-             <div id="status-message" class="mt-4 text-center font-medium p-4 rounded-lg flex-shrink-0"></div>
         </div>
     </div>
     
     <!-- Thanh điều hướng cho Mobile -->
     <div id="mobile-nav" class="hidden md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-sm border-t border-gray-200 flex items-center justify-around py-2 px-1 z-40 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
+        <button id="mobile-logout-button" class="flex flex-col items-center text-gray-600 hover:text-red-600 text-xs p-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            Đăng xuất
+        </button>
         <button id="mobile-new-post-button" class="flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Bài mới
@@ -528,10 +556,6 @@
         </button>
         <button id="mobile-save-post-button" class="px-5 py-2.5 rounded-full font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 shadow-lg text-base">
             🚀 Đăng
-        </button>
-        <button id="mobile-logout-button" class="flex flex-col items-center text-gray-600 hover:text-red-600 text-xs p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            Đăng xuất
         </button>
     </div>
 
