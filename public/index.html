@@ -93,7 +93,7 @@
 
                 await gapi.client.load('oauth2', 'v2');
 
-                // *** NEW: Kiểm tra phiên đăng nhập đã lưu ***
+                // Kiểm tra phiên đăng nhập đã lưu
                 const savedToken = localStorage.getItem('google_auth_token');
                 const savedExpiration = localStorage.getItem('google_auth_token_expiration');
 
@@ -115,7 +115,7 @@
                         if (tokenResponse && tokenResponse.access_token) {
                             console.log("Đăng nhập thành công. Đang lưu phiên và lấy thông tin người dùng.");
                             
-                            // *** NEW: Lưu token vào localStorage ***
+                            // Lưu token vào localStorage
                             const expiresIn = (tokenResponse.expires_in || 3600) - 60; // Trừ 60s cho an toàn
                             const expirationTime = Date.now() + expiresIn * 1000;
                             localStorage.setItem('google_auth_token', tokenResponse.access_token);
@@ -138,7 +138,7 @@
             }
         }
 
-        // 4. Hàm lấy thông tin và chuyển giao diện - ĐÃ TỐI ƯU HÓA
+        // 4. Hàm lấy thông tin và chuyển giao diện
         async function fetchUserInfoAndBlogs() {
             try {
                 setStatus('Đang xác thực và tải dữ liệu...', 'info');
@@ -191,24 +191,22 @@
             }
         }
         
+        // *** FIX: Logout sẽ tải lại trang để đảm bảo trạng thái sạch ***
         function handleLogout() {
-            // *** NEW: Xóa token khỏi localStorage khi đăng xuất ***
-            localStorage.removeItem('google_auth_token');
-            localStorage.removeItem('google_auth_token_expiration');
-
+            localStorage.clear(); // Xóa tất cả token đã lưu
             const token = gapi.client.getToken();
             if (token) {
                 google.accounts.oauth2.revoke(token.access_token, () => {
-                    gapi.client.setToken('');
-                    updateUI(false);
+                    // Sau khi thu hồi token, tải lại trang để reset hoàn toàn
+                    location.reload();
                 });
             } else {
-                updateUI(false);
+                // Nếu không có token, chỉ cần tải lại trang
+                location.reload();
             }
-            loginButton.disabled = false;
-            authMessage.textContent = 'Bạn đã đăng xuất.';
         }
 
+        // *** FIX: Xóa setStatus để không ghi đè thông báo thành công ***
         function updateUIForNewPost() {
             editingPostId = null;
             postTitleInput.value = '';
@@ -216,7 +214,6 @@
             selectedLabels.clear();
             renderSelectedLabels();
             savePostButton.innerHTML = '🚀 Đăng bài';
-            setStatus('Bắt đầu bài viết mới.', 'info');
         }
 
         async function fetchAndStoreLabels(blogId) {
