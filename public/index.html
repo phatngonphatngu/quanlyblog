@@ -2,46 +2,70 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ĐĂNG BÀI KHAI THỊ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trình Đăng Bài Blogger</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        #editor-wrapper { display: flex; flex-direction: column; flex-grow: 1; min-height: 0; }
-        .ql-container.ql-snow { flex-grow: 1; overflow-y: auto; border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
-        .ql-toolbar.ql-snow { border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; background: #f9fafb; }
+        /* --- CÁC THAY ĐỔI CHÍNH ---
+         * 1. Font chữ được áp dụng cho toàn bộ trang để nhất quán.
+         * 2. Bố cục flexbox được sử dụng để cố định header/footer và chỉ cho phép vùng editor cuộn.
+         * 3. Kích thước font chữ trong editor được tăng lên để dễ đọc hơn.
+         * 4. Giao diện được tinh chỉnh lại để "thanh thoát" và cân đối hơn.
+        */
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Ngăn cuộn toàn bộ trang */
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Màu nền nhẹ nhàng hơn */
+        }
 
-        /* --- CSS Tối ưu cho di động --- */
-        @media (max-width: 767px) {
-            /* Thu gọn thanh công cụ Quill trên di động */
-            .ql-toolbar.ql-snow.collapsed .ql-formats:not(:nth-child(1)):not(:nth-child(2)) {
-                display: none;
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Chiếm toàn bộ chiều cao màn hình */
+        }
+        
+        main {
+            flex-grow: 1; /* Vùng main chiếm hết không gian còn lại */
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* Rất quan trọng để flexbox hoạt động đúng khi có overflow */
+            padding-bottom: 70px; /* Tạo không gian cho thanh nav mobile */
+        }
+
+        @media (min-width: 768px) {
+            main {
+                 padding-bottom: 0;
             }
-            .ql-toolbar-toggle {
-                display: none; /* Ẩn trên desktop */
-                font-size: 1.2rem;
-                font-weight: bold;
-                padding: 0 8px;
-                cursor: pointer;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                margin-left: 8px;
-                background-color: #fff;
-                height: 26px;
-                line-height: 24px;
-            }
-            .ql-toolbar.ql-snow {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-            }
-            .ql-toolbar-toggle {
-                display: inline-block; /* Hiện trên di động */
-            }
+        }
+
+        #editor-wrapper {
+            flex-grow: 1; /* Wrapper của editor sẽ co giãn */
+            min-height: 0;
+            overflow-y: auto; /* CHỈ VÙNG NÀY ĐƯỢC PHÉP CUỘN */
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ql-container.ql-snow {
+            flex-grow: 1;
+            font-size: 16px; /* Tăng kích thước font chữ trong editor */
+            line-height: 1.6;
+            border: none !important;
+        }
+
+        .ql-toolbar.ql-snow {
+            border: none !important;
+            border-bottom: 1px solid #e5e7eb !important;
+            background: #f9fafb;
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
         }
     </style>
 
@@ -79,26 +103,19 @@
             const toast = document.getElementById('floating-toast');
             const toastContent = document.getElementById('toast-content');
             if (!toast || !toastContent) return;
+            if (toast.dataset.timeoutId) clearTimeout(parseInt(toast.dataset.timeoutId));
 
-            // Xóa timeout cũ nếu có
-            if (toast.dataset.timeoutId) {
-                clearTimeout(parseInt(toast.dataset.timeoutId));
-            }
-
-            // Đặt nội dung và màu sắc
             toastContent.innerHTML = message;
-            toastContent.className = 'p-4 rounded-lg shadow-lg text-white font-medium text-center'; // Reset classes
+            toastContent.className = 'p-4 rounded-lg shadow-lg text-white font-medium text-center';
             switch (type) {
                 case 'success': toastContent.classList.add('bg-green-500'); break;
                 case 'error': toastContent.classList.add('bg-red-500'); break;
                 case 'info': default: toastContent.classList.add('bg-blue-500'); break;
             }
 
-            // Hiển thị thông báo
             toast.style.transform = 'translate(-50%, 20px)';
             toast.style.opacity = '1';
 
-            // Đặt timeout để ẩn đi
             const timeoutId = setTimeout(() => {
                 toast.style.transform = 'translate(-50%, -120%)';
                 toast.style.opacity = '0';
@@ -169,8 +186,7 @@
 
                 const token = gapi.client.getToken();
                 const backendResponse = await fetch('/api/blogs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token })
                 });
                 const blogData = await backendResponse.json();
@@ -196,7 +212,6 @@
         function updateUI(isLoggedIn) {
             authContainer.classList.toggle('hidden', isLoggedIn);
             appContainer.classList.toggle('hidden', !isLoggedIn);
-            document.getElementById('mobile-nav')?.classList.toggle('hidden', !isLoggedIn);
         }
         
         function handleLogout() {
@@ -228,7 +243,7 @@
             selectedLabels.clear();
             renderSelectedLabels();
             updateSaveButtonState(false);
-            // setStatus('Bắt đầu bài viết mới.', 'info'); // ĐÃ XÓA DÒNG NÀY ĐỂ TRÁNH GHI ĐÈ THÔNG BÁO THÀNH CÔNG
+            postTitleInput.focus();
         }
 
         async function fetchAndStoreLabels(blogId) {
@@ -252,10 +267,10 @@
             labelsPillsContainer.innerHTML = '';
             selectedLabels.forEach(label => {
                 const pill = document.createElement('span');
-                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full';
+                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full';
                 pill.textContent = label;
                 const removeBtn = document.createElement('button');
-                removeBtn.className = 'bg-blue-200 hover:bg-blue-300 rounded-full p-0.5 leading-none text-blue-900';
+                removeBtn.className = 'bg-blue-200 hover:bg-blue-300 rounded-full w-4 h-4 flex items-center justify-center text-blue-900 focus:outline-none';
                 removeBtn.innerHTML = '&times;';
                 removeBtn.onclick = () => { selectedLabels.delete(label); renderSelectedLabels(); };
                 pill.appendChild(removeBtn);
@@ -272,12 +287,7 @@
                     const item = document.createElement('div');
                     item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100';
                     item.textContent = label;
-                    item.onclick = () => {
-                        selectedLabels.add(label);
-                        renderSelectedLabels();
-                        labelsInput.value = '';
-                        labelsSuggestions.classList.add('hidden');
-                    };
+                    item.onclick = () => addLabel(label);
                     labelsSuggestions.appendChild(item);
                 });
                 labelsSuggestions.classList.remove('hidden');
@@ -285,6 +295,23 @@
                 labelsSuggestions.classList.add('hidden');
             }
         }
+
+        // *** CẢI TIẾN: Hàm thêm nhãn riêng biệt ***
+        function addLabel(label) {
+            const trimmedLabel = label.trim();
+            if (trimmedLabel && !selectedLabels.has(trimmedLabel)) {
+                selectedLabels.add(trimmedLabel);
+                // Thêm vào danh sách nhãn có sẵn nếu là nhãn mới
+                if (!allAvailableLabels.includes(trimmedLabel)) {
+                    allAvailableLabels.push(trimmedLabel);
+                }
+                renderSelectedLabels();
+            }
+            labelsInput.value = '';
+            labelsSuggestions.classList.add('hidden');
+            labelsInput.focus();
+        }
+
 
         async function fetchPostsForModal(isLoadMore = false) {
             if (!isLoadMore) { postListPageToken = null; postListContainer.innerHTML = ''; }
@@ -301,7 +328,7 @@
                 data.items?.forEach(post => {
                     const postEl = document.createElement('div');
                     postEl.className = 'p-3 border-b hover:bg-gray-100 cursor-pointer';
-                    postEl.innerHTML = `<p class="font-semibold">${post.title}</p><p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>`;
+                    postEl.innerHTML = `<p class="font-semibold truncate">${post.title}</p><p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>`;
                     postEl.onclick = () => loadPostForEditing(post.id);
                     postListContainer.appendChild(postEl);
                 });
@@ -364,7 +391,9 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
                 setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-white underline">Xem bài viết</a>`, 'success');
-                if (!isUpdating) updateUIForNewPost();
+                if (!isUpdating) {
+                    updateUIForNewPost();
+                }
             } catch (err) {
                 setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
             } finally {
@@ -386,43 +415,11 @@
                 placeholder: 'Soạn nội dung của bạn tại đây...',
                 theme: 'snow'
             });
-            setupMobileToolbar();
-        }
-
-        function setupMobileToolbar() {
-            const toolbar = document.querySelector('.ql-toolbar');
-            if (!toolbar) return;
-
-            const existingButton = toolbar.querySelector('.ql-toolbar-toggle');
-            if (window.innerWidth >= 768) {
-                toolbar.classList.remove('collapsed');
-                if (existingButton) existingButton.style.display = 'none';
-                return;
-            }
-
-            toolbar.classList.add('collapsed');
-            if (existingButton) {
-                existingButton.style.display = 'inline-block';
-                return;
-            }
-
-            const toggleButton = document.createElement('button');
-            toggleButton.innerHTML = '...';
-            toggleButton.className = 'ql-toolbar-toggle';
-            toggleButton.type = 'button';
-            toggleButton.onclick = (e) => {
-                e.preventDefault();
-                toolbar.classList.toggle('collapsed');
-                toggleButton.innerHTML = toolbar.classList.contains('collapsed') ? '...' : '&times;';
-            };
-            toolbar.appendChild(toggleButton);
         }
         
         document.addEventListener('DOMContentLoaded', () => {
             // Gán biến
             loginButton = document.getElementById('login-button');
-            logoutButton = document.getElementById('logout-button');
-            savePostButton = document.getElementById('save-post-button');
             authContainer = document.getElementById('auth-container');
             appContainer = document.getElementById('app-container');
             postTitleInput = document.getElementById('post-title-input');
@@ -431,8 +428,6 @@
             labelsInput = document.getElementById('labels-input');
             labelsSuggestions = document.getElementById('labels-suggestions');
             authMessage = document.getElementById('auth-message');
-            newPostButton = document.getElementById('new-post-button');
-            findPostButton = document.getElementById('find-post-button');
             findPostModal = document.getElementById('find-post-modal');
             closeModalButton = document.getElementById('close-modal-button');
             postListContainer = document.getElementById('post-list');
@@ -440,30 +435,22 @@
             
             initializeQuill();
 
-            // Gán sự kiện cho nút desktop
-            loginButton.addEventListener('click', () => tokenClient?.requestAccessToken({}));
-            logoutButton.addEventListener('click', handleLogout);
-            savePostButton.addEventListener('click', savePost);
-            newPostButton.addEventListener('click', updateUIForNewPost);
-            findPostButton.addEventListener('click', () => { findPostModal.classList.remove('hidden'); fetchPostsForModal(); });
+            // Gán sự kiện cho các nút điều khiển
+            document.getElementById('login-button').addEventListener('click', () => tokenClient?.requestAccessToken({}));
+            document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
+            document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
+            document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
+            document.querySelectorAll('.find-post-button').forEach(btn => btn.addEventListener('click', () => { findPostModal.classList.remove('hidden'); fetchPostsForModal(); }));
+            
             closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
             loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
-
-            // Gán sự kiện cho nút mobile
-            document.getElementById('mobile-new-post-button').addEventListener('click', updateUIForNewPost);
-            document.getElementById('mobile-find-post-button').addEventListener('click', () => { findPostModal.classList.remove('hidden'); fetchPostsForModal(); });
-            document.getElementById('mobile-save-post-button').addEventListener('click', savePost);
-            document.getElementById('mobile-logout-button').addEventListener('click', handleLogout);
             
-            // Sự kiện cho nhãn
+            // *** CẢI TIẾN: Xử lý sự kiện cho nhãn ***
             labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
             labelsInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ',') {
                     e.preventDefault();
-                    const newLabel = labelsInput.value.trim();
-                    if (newLabel && !selectedLabels.has(newLabel)) { selectedLabels.add(newLabel); renderSelectedLabels(); }
-                    labelsInput.value = '';
-                    labelsSuggestions.classList.add('hidden');
+                    addLabel(labelsInput.value); // Gọi hàm mới
                 }
             });
             document.addEventListener('click', (e) => { if (labelsWrapper && !labelsWrapper.contains(e.target)) labelsSuggestions.classList.add('hidden'); });
@@ -473,23 +460,17 @@
                 postTitleInput.style.height = 'auto';
                 postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
             });
-
-            // Xử lý thay đổi kích thước cửa sổ
-            window.addEventListener('resize', setupMobileToolbar);
         });
     </script>
     
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-
 </head>
-<body class="bg-[#fffbbe]">
+<body class="bg-gray-100">
 
     <!-- Thông báo nổi -->
     <div id="floating-toast" class="fixed top-0 left-1/2 w-full max-w-md p-4 z-[200] transition-all duration-300 ease-in-out opacity-0" style="transform: translate(-50%, -120%);">
-        <div id="toast-content" class="p-4 rounded-lg shadow-lg text-white font-medium text-center">
-            <!-- Nội dung được chèn bằng JS -->
-        </div>
+        <div id="toast-content"></div>
     </div>
 
     <!-- Màn hình đăng nhập -->
@@ -497,7 +478,7 @@
         <div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Trình Đăng bài Blogger</h1>
             <div id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</div>
-            <button id="login-button" class="w-full px-6 py-2 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled>
+            <button id="login-button" class="w-full px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled>
                 <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
             </button>
@@ -506,81 +487,66 @@
 
     <!-- Giao diện ứng dụng chính -->
     <div id="app-container" class="hidden">
-        <!-- START: Thay đổi để tối ưu mobile -->
-        <!--
-            - Đã xóa class `fixed inset-0` và `style="z-index: 10;"`.
-            - Đã thêm `min-h-screen` để đảm bảo nội dung chiếm toàn bộ chiều cao trên mobile.
-            - Đã thêm các class responsive `md:fixed md:inset-0 md:z-10` để giữ lại giao diện cũ trên desktop.
-            - Thay đổi này cho phép toàn bộ trang cuộn trên mobile, mang lại trải nghiệm tự nhiên hơn.
-        -->
-        <div class="min-h-screen md:fixed md:inset-0 bg-[#fffbbe] p-4 md:p-8 pb-24 md:pb-8 flex flex-col md:z-10">
-        <!-- END: Thay đổi để tối ưu mobile -->
-
-            <!-- Header cho Desktop -->
-            <header class="flex-shrink-0 hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
-                <div class="flex items-center gap-4">
-                    <button id="new-post-button" class="px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:bg-gray-200">Bài viết mới</button>
-                    <button id="find-post-button" class="px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:bg-gray-200">Tìm bài viết</button>
-                </div>
-                <div class="flex items-center gap-4 w-full sm:w-auto justify-end">
-                    <button id="logout-button" class="text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
-                    <button id="save-post-button" class="px-8 py-3 rounded-lg font-semibold text-white transition duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg text-lg flex-shrink-0">
-                        🚀 Đăng bài
-                    </button>
-                </div>
-            </header>
+        <!-- Header cho Desktop -->
+        <header class="flex-shrink-0 hidden md:flex items-center justify-between p-4 bg-white border-b">
+            <div class="flex items-center gap-4">
+                <h1 class="text-xl font-bold">Trình Soạn Thảo</h1>
+                <button class="new-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Bài viết mới</button>
+                <button class="find-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Tìm bài viết</button>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="logout-button text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
+                <button id="save-post-button" class="save-post-button px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 shadow-md flex-shrink-0">
+                    🚀 Đăng bài
+                </button>
+            </div>
+        </header>
             
-            <!-- Vùng làm việc chính -->
-            <!-- START: Thay đổi để tối ưu mobile -->
-            <!--
-                - Đã thay `overflow-y-auto` bằng `md:overflow-y-auto`.
-                - Trên mobile, vùng main sẽ không tự cuộn nữa mà sẽ giãn ra, để cho body của trang xử lý việc cuộn.
-                - Trên desktop, vùng main sẽ cuộn để giữ header cố định.
-            -->
-            <main class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col md:overflow-y-auto min-h-0">
-            <!-- END: Thay đổi để tối ưu mobile -->
-                <textarea id="post-title-input" class="w-full text-lg md:text-xl font-bold border-none focus:ring-0 p-2 mb-2 md:mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
-                
-                <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
-                    <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50">
-                        <div id="labels-pills-container" class="flex flex-wrap items-center gap-2"></div>
-                        <input id="labels-input" type="text" placeholder="Thêm nhãn..." class="flex-grow border-none focus:ring-0 p-1 bg-transparent">
-                    </div>
-                    <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden" style="z-index: 60;"></div>
+        <!-- Vùng làm việc chính -->
+        <main class="p-4 bg-white md:bg-gray-100">
+            <!-- *** CẢI TIẾN: Kích thước font tiêu đề cân đối hơn *** -->
+            <textarea id="post-title-input" class="w-full text-2xl md:text-3xl font-bold border-none focus:ring-0 p-2 mb-3 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+            
+            <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
+                <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                    <div id="labels-pills-container" class="flex flex-wrap items-center gap-2"></div>
+                    <input id="labels-input" type="text" placeholder="Thêm nhãn (Enter để thêm)..." class="flex-grow border-none focus:ring-0 p-1 bg-transparent text-sm">
                 </div>
+                <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden z-50"></div>
+            </div>
 
-                <div id="editor-wrapper">
-                     <div id="editor"></div>
-                </div>
-            </main>
+            <!-- *** CẢI TIẾN: Wrapper này sẽ cuộn thay vì cả trang *** -->
+            <div id="editor-wrapper">
+                 <div id="editor"></div>
+            </div>
+        </main>
+        
+        <!-- Thanh điều hướng cho Mobile -->
+        <div class="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 flex items-center justify-around py-1.5 px-1 z-40 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
+            <button class="new-post-button flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Bài mới
+            </button>
+            <button class="find-post-button flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                Tìm bài
+            </button>
+            <button id="mobile-save-post-button" class="save-post-button px-5 py-3 rounded-full font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 shadow-lg text-base w-2/5">
+                🚀 Đăng
+            </button>
+             <button class="logout-button flex flex-col items-center text-gray-600 hover:text-red-600 text-xs p-1 w-1/5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                Thoát
+            </button>
         </div>
-    </div>
-    
-    <!-- Thanh điều hướng cho Mobile -->
-    <div id="mobile-nav" class="hidden md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-sm border-t border-gray-200 flex items-center justify-around py-2 px-1 z-40 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
-        <button id="mobile-logout-button" class="flex flex-col items-center text-gray-600 hover:text-red-600 text-xs p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            Đăng xuất
-        </button>
-        <button id="mobile-new-post-button" class="flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Bài mới
-        </button>
-        <button id="mobile-find-post-button" class="flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            Tìm bài
-        </button>
-        <button id="mobile-save-post-button" class="px-5 py-2.5 rounded-full font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 shadow-lg text-base">
-            🚀 Đăng
-        </button>
     </div>
 
     <!-- Modal tìm bài viết -->
-    <div id="find-post-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4" style="height: 80vh;">
+    <div id="find-post-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4 h-[85vh] md:h-[80vh]">
             <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
                 <h2 class="text-xl font-bold">Tìm bài viết để sửa</h2>
-                <button id="close-modal-button" class="text-2xl font-bold leading-none">&times;</button>
+                <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
             </div>
             <div id="post-list" class="flex-grow overflow-y-auto p-2"></div>
             <div id="modal-footer" class="p-4 border-t flex-shrink-0 text-center">
