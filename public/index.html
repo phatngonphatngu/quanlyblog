@@ -28,7 +28,7 @@
             flex-grow: 1; 
             display: flex;
             flex-direction: column;
-            min-height: 0; 
+            min-height: 0; /* Rất quan trọng cho Flexbox */
             padding-bottom: 70px; /* Không gian cho nav mobile */
         }
 
@@ -39,25 +39,22 @@
         }
 
         #editor-wrapper {
-            flex-grow: 1; 
-            min-height: 0; /* Cho phép co lại */
-            overflow-y: auto; /* CHỈ VÙNG NÀY ĐƯỢC PHÉP CUỘN */
+            flex-grow: 1; /* Wrapper của editor sẽ co giãn */
+            min-height: 0; /* Cho phép co lại để không làm vỡ layout */
+            overflow-y: hidden; /* Vô hiệu hóa cuộn ở wrapper */
             border: 1px solid #e5e7eb;
             border-radius: 0.75rem;
             display: flex;
             flex-direction: column;
         }
-
-        #editor {
-            height: 100%;
-        }
-
+        
+        /* Chỉ cho phép vùng nội dung của Quill cuộn */
         .ql-container.ql-snow {
             flex-grow: 1;
             font-size: 18px; 
             line-height: 1.7;
             border: none !important;
-            overflow-y: auto;
+            overflow-y: auto; /* CUỘN Ở ĐÂY */
         }
 
         .ql-toolbar.ql-snow {
@@ -360,33 +357,42 @@
             }
         }
         
-        // CẬP NHẬT: Hiển thị modal xác nhận thay vì prompt
         function confirmPostDeletion(postId, postTitle) {
             postToDelete = { id: postId, title: postTitle };
             document.getElementById('post-to-delete-title').textContent = `"${postTitle}"`;
             deleteConfirmModal.classList.remove('hidden');
         }
 
+        // *** FIX LỖI XÓA BÀI VIẾT ***
         async function executeActualDelete() {
             if (!postToDelete.id) return;
             deleteConfirmModal.classList.add('hidden');
             setStatus('Đang xóa bài viết...', 'info');
             const token = gapi.client.getToken();
             if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
+            
             try {
                 const response = await fetch('/api/post/delete', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
                 });
+                
+                // Nếu response không OK (vd: 404, 500), đọc text để debug
                 if (!response.ok) {
-                    const errorResult = await response.json();
-                    throw new Error(errorResult.error?.message || 'Lỗi không xác định');
+                    const errorText = await response.text();
+                    // Ném lỗi với nội dung từ server để catch block xử lý
+                    throw new Error(errorText || `Lỗi từ máy chủ: ${response.status}`);
                 }
+                
+                // Blogger API trả về 204 No Content khi thành công, không có body
                 setStatus('Xóa bài viết thành công!', 'success');
                 document.getElementById(`post-item-${postToDelete.id}`)?.remove();
+
             } catch (err) {
-                setStatus(`Lỗi khi xóa bài viết: ${err.message}`, 'error');
+                // Hiển thị thông báo lỗi thân thiện hơn
+                console.error("CHI TIẾT LỖI XÓA:", err.message); // Log lỗi đầy đủ ra console để bạn debug
+                setStatus(`Lỗi khi xóa bài viết. Server trả về lỗi.`, 'error');
             } finally {
                 postToDelete = { id: null, title: null };
             }
@@ -503,7 +509,7 @@
                 if (editWrapper) loadPostForEditing(editWrapper.dataset.postId);
             });
             
-            // CẬP NHẬT: Gán sự kiện cho modal xác nhận xóa
+            // Gán sự kiện cho modal xác nhận xóa
             document.getElementById('confirm-delete-button').addEventListener('click', executeActualDelete);
             document.getElementById('cancel-delete-button').addEventListener('click', () => {
                 deleteConfirmModal.classList.add('hidden');
