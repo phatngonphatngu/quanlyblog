@@ -287,7 +287,7 @@
                     const item = document.createElement('div');
                     item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100';
                     item.textContent = label;
-                    item.onclick = () => addLabel(label);
+                    item.onclick = () => addLabelsFromInput(label); // Sửa ở đây để gọi hàm mới
                     labelsSuggestions.appendChild(item);
                 });
                 labelsSuggestions.classList.remove('hidden');
@@ -296,20 +296,31 @@
             }
         }
 
-        // *** CẢI TIẾN: Hàm thêm nhãn riêng biệt ***
-        function addLabel(label) {
-            const trimmedLabel = label.trim();
-            if (trimmedLabel && !selectedLabels.has(trimmedLabel)) {
-                selectedLabels.add(trimmedLabel);
-                // Thêm vào danh sách nhãn có sẵn nếu là nhãn mới
-                if (!allAvailableLabels.includes(trimmedLabel)) {
-                    allAvailableLabels.push(trimmedLabel);
+        // *** CẢI TIẾN V2: Sửa lỗi và cải thiện chức năng thêm nhãn ***
+        function addLabelsFromInput(initialLabel = '') {
+            const inputValue = initialLabel || labelsInput.value;
+            const newLabels = inputValue
+                .split(',')
+                .map(label => label.trim())
+                .filter(label => label.length > 0);
+
+            let labelAdded = false;
+            newLabels.forEach(label => {
+                if (!selectedLabels.has(label)) {
+                    selectedLabels.add(label);
+                    if (!allAvailableLabels.includes(label)) {
+                        allAvailableLabels.push(label);
+                    }
+                    labelAdded = true;
                 }
+            });
+
+            if (labelAdded) {
                 renderSelectedLabels();
             }
+
             labelsInput.value = '';
             labelsSuggestions.classList.add('hidden');
-            labelsInput.focus();
         }
 
 
@@ -445,15 +456,20 @@
             closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
             loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
             
-            // *** CẢI TIẾN: Xử lý sự kiện cho nhãn ***
+            // *** CẢI TIẾN V2: Xử lý sự kiện cho nhãn ***
             labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
             labelsInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ',') {
                     e.preventDefault();
-                    addLabel(labelsInput.value); // Gọi hàm mới
+                    addLabelsFromInput();
                 }
             });
-            document.addEventListener('click', (e) => { if (labelsWrapper && !labelsWrapper.contains(e.target)) labelsSuggestions.classList.add('hidden'); });
+            labelsInput.addEventListener('blur', () => addLabelsFromInput());
+            document.addEventListener('click', (e) => { 
+                if (labelsWrapper && !labelsWrapper.contains(e.target)) {
+                    labelsSuggestions.classList.add('hidden'); 
+                }
+            });
             
             // Tự động điều chỉnh chiều cao tiêu đề
             postTitleInput.addEventListener('input', () => {
@@ -510,7 +526,7 @@
             <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
                 <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
                     <div id="labels-pills-container" class="flex flex-wrap items-center gap-2"></div>
-                    <input id="labels-input" type="text" placeholder="Thêm nhãn (Enter để thêm)..." class="flex-grow border-none focus:ring-0 p-1 bg-transparent text-sm">
+                    <input id="labels-input" type="text" placeholder="Thêm nhãn (Enter hoặc dấu phẩy để thêm)..." class="flex-grow border-none focus:ring-0 p-1 bg-transparent text-sm">
                 </div>
                 <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden z-50"></div>
             </div>
