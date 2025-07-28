@@ -20,10 +20,9 @@
         #app-container {
             display: flex;
             flex-direction: column;
-            height: 100vh; /* Chiếm toàn bộ chiều cao màn hình */
+            height: 100%; /* Sửa thành 100% để hoạt động tốt hơn trên mobile */
         }
         
-        /* CẬP NHẬT BỐ CỤC: Đảm bảo chỉ editor cuộn */
         main {
             flex-grow: 1; 
             display: flex;
@@ -48,13 +47,12 @@
             flex-direction: column;
         }
         
-        /* Chỉ cho phép vùng nội dung của Quill cuộn */
         .ql-container.ql-snow {
             flex-grow: 1;
             font-size: 18px; 
             line-height: 1.7;
             border: none !important;
-            overflow-y: auto; /* CUỘN Ở ĐÂY */
+            overflow-y: auto; /* Chỉ vùng nội dung của Quill được cuộn */
         }
 
         .ql-toolbar.ql-snow {
@@ -82,7 +80,7 @@
         let tokenClient, quill, selectedBlogId = null, allAvailableLabels = [], editingPostId = null, postListPageToken = null;
         let selectedLabels = new Set();
         let gapiReady = false, gisReady = false;
-        let postToDelete = { id: null, title: null }; // Để lưu thông tin bài viết cần xóa
+        let postToDelete = { id: null, title: null }; 
 
         // Biến DOM Elements
         let authContainer, appContainer, postTitleInput, labelsWrapper, labelsPillsContainer, 
@@ -199,7 +197,6 @@
             }
         }
 
-        // *** CẬP NHẬT GIAO DIỆN VÀ XỬ LÝ SỰ KIỆN ***
         function updateUI(isLoggedIn) {
             authContainer.classList.toggle('hidden', isLoggedIn);
             appContainer.classList.toggle('hidden', !isLoggedIn);
@@ -287,7 +284,6 @@
             labelsSuggestions.classList.add('hidden');
         }
 
-
         async function fetchPostsForModal(isLoadMore = false) {
             if (!isLoadMore) { postListPageToken = null; postListContainer.innerHTML = ''; }
             loadMorePostsButton.disabled = true; loadMorePostsButton.textContent = 'Đang tải...';
@@ -363,7 +359,6 @@
             deleteConfirmModal.classList.remove('hidden');
         }
 
-        // *** FIX LỖI XÓA BÀI VIẾT ***
         async function executeActualDelete() {
             if (!postToDelete.id) return;
             deleteConfirmModal.classList.add('hidden');
@@ -372,32 +367,29 @@
             if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
             
             try {
+                // *** SỬA LỖI: Chuyển sang dùng method DELETE đúng chuẩn RESTful ***
                 const response = await fetch('/api/post/delete', {
-                    method: 'DELETE',
+                    method: 'DELETE', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
                 });
                 
-                // Nếu response không OK (vd: 404, 500), đọc text để debug
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    // Ném lỗi với nội dung từ server để catch block xử lý
-                    throw new Error(errorText || `Lỗi từ máy chủ: ${response.status}`);
+                // Nếu response không OK (vd: 404, 500) và không phải 204 (thành công)
+                if (!response.ok && response.status !== 204) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `Lỗi từ máy chủ: ${response.status}`);
                 }
                 
-                // Blogger API trả về 204 No Content khi thành công, không có body
                 setStatus('Xóa bài viết thành công!', 'success');
                 document.getElementById(`post-item-${postToDelete.id}`)?.remove();
 
             } catch (err) {
-                // Hiển thị thông báo lỗi thân thiện hơn
-                console.error("CHI TIẾT LỖI XÓA:", err.message); // Log lỗi đầy đủ ra console để bạn debug
-                setStatus(`Lỗi khi xóa bài viết. Server trả về lỗi.`, 'error');
+                console.error("CHI TIẾT LỖI XÓA:", err.message);
+                setStatus(`Lỗi khi xóa bài viết. Vui lòng kiểm tra lại server.`, 'error');
             } finally {
                 postToDelete = { id: null, title: null };
             }
         }
-
 
         async function savePost() {
             const title = postTitleInput.value.trim();
@@ -430,7 +422,7 @@
 
         function initializeQuill() {
              quill = new Quill('#editor', {
-                modules: { toolbar: true }, // Toolbar mặc định
+                modules: { toolbar: true }, 
                 placeholder: 'Soạn nội dung của bạn tại đây...',
                 theme: 'snow'
             });
@@ -498,7 +490,6 @@
                 postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
             });
 
-            // Xử lý sự kiện cho modal
             postListContainer.addEventListener('click', (e) => {
                 const deleteButton = e.target.closest('.delete-post-button');
                 if (deleteButton) {
@@ -509,7 +500,6 @@
                 if (editWrapper) loadPostForEditing(editWrapper.dataset.postId);
             });
             
-            // Gán sự kiện cho modal xác nhận xóa
             document.getElementById('confirm-delete-button').addEventListener('click', executeActualDelete);
             document.getElementById('cancel-delete-button').addEventListener('click', () => {
                 deleteConfirmModal.classList.add('hidden');
