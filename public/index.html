@@ -90,7 +90,7 @@
             postTitleInput, labelsWrapper, labelsPillsContainer, labelsInput,
             labelsSuggestions, authMessage, newPostButton,
             findPostButton, findPostModal, closeModalButton, postListContainer,
-            loadMorePostsButton;
+            loadMorePostsButton, searchPostInput;
 
         // Hàm tiện ích cho thông báo nổi
         function setStatus(message, type = 'info', duration = 4000) {
@@ -222,10 +222,10 @@
             const desktopButton = document.getElementById('save-post-button');
             const mobileButton = document.getElementById('mobile-save-post-button');
             if (isEditing) {
-                if(desktopButton) desktopButton.innerHTML = '� Cập nhật';
+                if(desktopButton) desktopButton.innerHTML = '💾 Cập nhật';
                 if(mobileButton) mobileButton.innerHTML = '💾 Cập nhật';
             } else {
-                if(desktopButton) desktopButton.innerHTML = '🚀 Đăng bài';
+                if(desktopButton) desktopButton.innerHTML = '� Đăng bài';
                 if(mobileButton) mobileButton.innerHTML = '🚀 Đăng';
             }
         }
@@ -322,24 +322,40 @@
 
                 data.items?.forEach(post => {
                     const postEl = document.createElement('div');
-                    postEl.id = `post-item-${post.id}`; // Thêm ID để xóa
-                    postEl.className = 'p-3 border-b hover:bg-gray-50';
+                    postEl.id = `post-item-${post.id}`;
+                    postEl.className = 'post-item p-3 border-b hover:bg-gray-50';
                     
-                    // Thêm nút xóa
-                    postEl.innerHTML = `
-                        <div class="flex items-center justify-between w-full gap-4">
-                            <div class="flex-grow min-w-0 cursor-pointer" onclick="loadPostForEditing('${post.id}')">
-                                <p class="font-semibold truncate">${post.title}</p>
-                                <p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>
-                            </div>
-                            <button onclick="deletePost('${post.id}', '${post.title.replace(/'/g, "\\'")}')" class="delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium">Xóa</button>
-                        </div>
-                    `;
+                    const container = document.createElement('div');
+                    container.className = 'flex items-center justify-between w-full gap-4';
+
+                    const editWrapper = document.createElement('div');
+                    editWrapper.className = 'edit-post-wrapper flex-grow min-w-0 cursor-pointer';
+                    editWrapper.dataset.postId = post.id;
+                    
+                    const titleP = document.createElement('p');
+                    titleP.className = 'post-title font-semibold truncate';
+                    titleP.textContent = post.title;
+
+                    const dateP = document.createElement('p');
+                    dateP.className = 'text-sm text-gray-500';
+                    dateP.textContent = `Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}`;
+
+                    editWrapper.append(titleP, dateP);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium';
+                    deleteBtn.textContent = 'Xóa';
+                    deleteBtn.dataset.postId = post.id;
+                    deleteBtn.dataset.postTitle = post.title;
+                    
+                    container.append(editWrapper, deleteBtn);
+                    postEl.appendChild(container);
                     postListContainer.appendChild(postEl);
                 });
 
                 postListPageToken = data.nextPageToken;
                 loadMorePostsButton.style.display = postListPageToken ? 'block' : 'none';
+                filterPostsInModal(); // Lọc lại danh sách sau khi tải thêm
             } catch (err) {
                 postListContainer.innerHTML = `<p class="text-red-500 p-4">Lỗi tải bài viết: ${err.message}</p>`;
             } finally {
@@ -376,29 +392,21 @@
             const confirmation = prompt(`Để xóa bài viết, vui lòng nhập lại chính xác tiêu đề bên dưới:\n\n${postTitle}`);
 
             if (confirmation !== postTitle) {
-                if (confirmation !== null) { // Chỉ hiện lỗi nếu người dùng nhập sai, không phải khi họ hủy.
+                if (confirmation !== null) {
                     setStatus('Tiêu đề nhập không khớp. Thao tác xóa đã bị hủy.', 'error');
                 }
                 return;
             }
 
             setStatus('Đang xóa bài viết...', 'info');
-
             const token = gapi.client.getToken();
-            if (!token) {
-                setStatus('Phiên đăng nhập đã hết hạn.', 'error');
-                return;
-            }
+            if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
 
             try {
                 const response = await fetch('/api/post/delete', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        accessToken: token.access_token,
-                        blogId: selectedBlogId,
-                        postId: postId
-                    })
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId })
                 });
 
                 if (!response.ok) {
@@ -407,8 +415,7 @@
                 }
 
                 setStatus('Xóa bài viết thành công!', 'success');
-                // Xóa bài viết khỏi danh sách trong modal
-                document.getElementById(`post-item-${postId}`).remove();
+                document.getElementById(`post-item-${postId}`)?.remove();
 
             } catch (err) {
                 setStatus(`Lỗi khi xóa bài viết: ${err.message}`, 'error');
@@ -424,7 +431,6 @@
 
             const isUpdating = !!editingPostId;
             setStatus(isUpdating ? 'Đang cập nhật...' : 'Đang đăng bài...', 'info');
-            
             document.querySelectorAll('.save-post-button').forEach(btn => btn.disabled = true);
 
             const endpoint = isUpdating ? '/api/post/update' : '/api/post/create';
@@ -437,9 +443,7 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
                 setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-white underline">Xem bài viết</a>`, 'success');
-                if (!isUpdating) {
-                    updateUIForNewPost();
-                }
+                if (!isUpdating) updateUIForNewPost();
             } catch (err) {
                 setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
             } finally {
@@ -461,6 +465,19 @@
                 theme: 'snow'
             });
         }
+
+        function filterPostsInModal() {
+            const query = searchPostInput.value.toLowerCase().trim();
+            const posts = postListContainer.querySelectorAll('.post-item');
+            posts.forEach(post => {
+                const title = post.querySelector('.post-title').textContent.toLowerCase();
+                if (title.includes(query)) {
+                    post.style.display = 'block';
+                } else {
+                    post.style.display = 'none';
+                }
+            });
+        }
         
         document.addEventListener('DOMContentLoaded', () => {
             // Gán biến
@@ -477,6 +494,7 @@
             closeModalButton = document.getElementById('close-modal-button');
             postListContainer = document.getElementById('post-list');
             loadMorePostsButton = document.getElementById('load-more-posts-button');
+            searchPostInput = document.getElementById('search-post-input');
             
             initializeQuill();
 
@@ -485,7 +503,13 @@
             document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
             document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
             document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
-            document.querySelectorAll('.find-post-button').forEach(btn => btn.addEventListener('click', () => { findPostModal.classList.remove('hidden'); fetchPostsForModal(); }));
+            document.querySelectorAll('.find-post-button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    searchPostInput.value = ''; // Xóa bộ lọc cũ
+                    findPostModal.classList.remove('hidden'); 
+                    fetchPostsForModal(); 
+                });
+            });
             
             closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
             loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
@@ -510,6 +534,22 @@
                 postTitleInput.style.height = 'auto';
                 postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
             });
+
+            // *** FIX LỖI & THÊM TÌM KIẾM ***
+            // Sử dụng event delegation để xử lý click xóa và sửa
+            postListContainer.addEventListener('click', (e) => {
+                const deleteButton = e.target.closest('.delete-post-button');
+                if (deleteButton) {
+                    deletePost(deleteButton.dataset.postId, deleteButton.dataset.postTitle);
+                    return; // Ngăn chặn sự kiện click lan tới wrapper sửa
+                }
+                const editWrapper = e.target.closest('.edit-post-wrapper');
+                if (editWrapper) {
+                    loadPostForEditing(editWrapper.dataset.postId);
+                }
+            });
+            // Thêm sự kiện cho ô tìm kiếm
+            searchPostInput.addEventListener('input', filterPostsInModal);
         });
     </script>
     
@@ -593,9 +633,13 @@
     <!-- Modal tìm bài viết -->
     <div id="find-post-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4 h-[85vh] md:h-[80vh]">
-            <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
-                <h2 class="text-xl font-bold">Quản lý bài viết</h2>
-                <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
+            <div class="p-4 border-b flex-shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Quản lý bài viết</h2>
+                    <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
+                </div>
+                <!-- THÊM Ô TÌM KIẾM -->
+                <input type="text" id="search-post-input" placeholder="Tìm kiếm theo tiêu đề..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             </div>
             <div id="post-list" class="flex-grow overflow-y-auto p-2"></div>
             <div id="modal-footer" class="p-4 border-t flex-shrink-0 text-center">
