@@ -10,12 +10,6 @@
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     
     <style>
-        /* --- CÁC THAY ĐỔI CHÍNH ---
-         * 1. Font chữ được áp dụng cho toàn bộ trang để nhất quán.
-         * 2. Bố cục flexbox được sử dụng để cố định header/footer và chỉ cho phép vùng editor cuộn.
-         * 3. Kích thước font chữ trong editor được tăng lên để dễ đọc hơn.
-         * 4. Giao diện được tinh chỉnh lại để "thanh thoát" và cân đối hơn.
-        */
         html, body {
             height: 100%;
             overflow: hidden; /* Ngăn cuộn toàn bộ trang */
@@ -55,8 +49,8 @@
 
         .ql-container.ql-snow {
             flex-grow: 1;
-            font-size: 16px; /* Tăng kích thước font chữ trong editor */
-            line-height: 1.6;
+            font-size: 18px; /* TĂNG KÍCH THƯỚC FONT */
+            line-height: 1.7;
             border: none !important;
         }
 
@@ -228,7 +222,7 @@
             const desktopButton = document.getElementById('save-post-button');
             const mobileButton = document.getElementById('mobile-save-post-button');
             if (isEditing) {
-                if(desktopButton) desktopButton.innerHTML = '💾 Cập nhật';
+                if(desktopButton) desktopButton.innerHTML = '� Cập nhật';
                 if(mobileButton) mobileButton.innerHTML = '💾 Cập nhật';
             } else {
                 if(desktopButton) desktopButton.innerHTML = '🚀 Đăng bài';
@@ -287,7 +281,7 @@
                     const item = document.createElement('div');
                     item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100';
                     item.textContent = label;
-                    item.onclick = () => addLabelsFromInput(label); // Sửa ở đây để gọi hàm mới
+                    item.onclick = () => addLabelsFromInput(label);
                     labelsSuggestions.appendChild(item);
                 });
                 labelsSuggestions.classList.remove('hidden');
@@ -296,29 +290,18 @@
             }
         }
 
-        // *** CẢI TIẾN V2: Sửa lỗi và cải thiện chức năng thêm nhãn ***
         function addLabelsFromInput(initialLabel = '') {
             const inputValue = initialLabel || labelsInput.value;
-            const newLabels = inputValue
-                .split(',')
-                .map(label => label.trim())
-                .filter(label => label.length > 0);
-
+            const newLabels = inputValue.split(',').map(label => label.trim()).filter(label => label.length > 0);
             let labelAdded = false;
             newLabels.forEach(label => {
                 if (!selectedLabels.has(label)) {
                     selectedLabels.add(label);
-                    if (!allAvailableLabels.includes(label)) {
-                        allAvailableLabels.push(label);
-                    }
+                    if (!allAvailableLabels.includes(label)) allAvailableLabels.push(label);
                     labelAdded = true;
                 }
             });
-
-            if (labelAdded) {
-                renderSelectedLabels();
-            }
-
+            if (labelAdded) renderSelectedLabels();
             labelsInput.value = '';
             labelsSuggestions.classList.add('hidden');
         }
@@ -336,13 +319,25 @@
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error?.message);
+
                 data.items?.forEach(post => {
                     const postEl = document.createElement('div');
-                    postEl.className = 'p-3 border-b hover:bg-gray-100 cursor-pointer';
-                    postEl.innerHTML = `<p class="font-semibold truncate">${post.title}</p><p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>`;
-                    postEl.onclick = () => loadPostForEditing(post.id);
+                    postEl.id = `post-item-${post.id}`; // Thêm ID để xóa
+                    postEl.className = 'p-3 border-b hover:bg-gray-50';
+                    
+                    // Thêm nút xóa
+                    postEl.innerHTML = `
+                        <div class="flex items-center justify-between w-full gap-4">
+                            <div class="flex-grow min-w-0 cursor-pointer" onclick="loadPostForEditing('${post.id}')">
+                                <p class="font-semibold truncate">${post.title}</p>
+                                <p class="text-sm text-gray-500">Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}</p>
+                            </div>
+                            <button onclick="deletePost('${post.id}', '${post.title.replace(/'/g, "\\'")}')" class="delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium">Xóa</button>
+                        </div>
+                    `;
                     postListContainer.appendChild(postEl);
                 });
+
                 postListPageToken = data.nextPageToken;
                 loadMorePostsButton.style.display = postListPageToken ? 'block' : 'none';
             } catch (err) {
@@ -377,6 +372,49 @@
             }
         }
 
+        async function deletePost(postId, postTitle) {
+            const confirmation = prompt(`Để xóa bài viết, vui lòng nhập lại chính xác tiêu đề bên dưới:\n\n${postTitle}`);
+
+            if (confirmation !== postTitle) {
+                if (confirmation !== null) { // Chỉ hiện lỗi nếu người dùng nhập sai, không phải khi họ hủy.
+                    setStatus('Tiêu đề nhập không khớp. Thao tác xóa đã bị hủy.', 'error');
+                }
+                return;
+            }
+
+            setStatus('Đang xóa bài viết...', 'info');
+
+            const token = gapi.client.getToken();
+            if (!token) {
+                setStatus('Phiên đăng nhập đã hết hạn.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/post/delete', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accessToken: token.access_token,
+                        blogId: selectedBlogId,
+                        postId: postId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    throw new Error(errorResult.error?.message || 'Lỗi không xác định từ server');
+                }
+
+                setStatus('Xóa bài viết thành công!', 'success');
+                // Xóa bài viết khỏi danh sách trong modal
+                document.getElementById(`post-item-${postId}`).remove();
+
+            } catch (err) {
+                setStatus(`Lỗi khi xóa bài viết: ${err.message}`, 'error');
+            }
+        }
+
         async function savePost() {
             const title = postTitleInput.value.trim();
             const content = quill.root.innerHTML;
@@ -387,10 +425,7 @@
             const isUpdating = !!editingPostId;
             setStatus(isUpdating ? 'Đang cập nhật...' : 'Đang đăng bài...', 'info');
             
-            const desktopSaveButton = document.getElementById('save-post-button');
-            const mobileSaveButton = document.getElementById('mobile-save-post-button');
-            if(desktopSaveButton) desktopSaveButton.disabled = true;
-            if(mobileSaveButton) mobileSaveButton.disabled = true;
+            document.querySelectorAll('.save-post-button').forEach(btn => btn.disabled = true);
 
             const endpoint = isUpdating ? '/api/post/update' : '/api/post/create';
             const method = isUpdating ? 'PATCH' : 'POST';
@@ -408,8 +443,7 @@
             } catch (err) {
                 setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
             } finally {
-                if(desktopSaveButton) desktopSaveButton.disabled = false;
-                if(mobileSaveButton) mobileSaveButton.disabled = false;
+                document.querySelectorAll('.save-post-button').forEach(btn => btn.disabled = false);
             }
         }
 
@@ -456,7 +490,7 @@
             closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
             loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
             
-            // *** CẢI TIẾN V2: Xử lý sự kiện cho nhãn ***
+            // Xử lý sự kiện cho nhãn
             labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
             labelsInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ',') {
@@ -520,8 +554,8 @@
             
         <!-- Vùng làm việc chính -->
         <main class="p-4 bg-white md:bg-gray-100">
-            <!-- *** CẢI TIẾN: Kích thước font tiêu đề cân đối hơn *** -->
-            <textarea id="post-title-input" class="w-full text-2xl md:text-3xl font-bold border-none focus:ring-0 p-2 mb-3 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+            <!-- GIẢM KÍCH THƯỚC FONT TIÊU ĐỀ -->
+            <textarea id="post-title-input" class="w-full text-xl md:text-2xl font-bold border-none focus:ring-0 p-2 mb-3 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
             
             <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
                 <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
@@ -531,7 +565,6 @@
                 <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden z-50"></div>
             </div>
 
-            <!-- *** CẢI TIẾN: Wrapper này sẽ cuộn thay vì cả trang *** -->
             <div id="editor-wrapper">
                  <div id="editor"></div>
             </div>
@@ -561,7 +594,7 @@
     <div id="find-post-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4 h-[85vh] md:h-[80vh]">
             <div class="p-4 border-b flex justify-between items-center flex-shrink-0">
-                <h2 class="text-xl font-bold">Tìm bài viết để sửa</h2>
+                <h2 class="text-xl font-bold">Quản lý bài viết</h2>
                 <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
             </div>
             <div id="post-list" class="flex-grow overflow-y-auto p-2"></div>
