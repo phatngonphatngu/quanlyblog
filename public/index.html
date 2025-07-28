@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trình Đăng bài Blogger</title>
+    <title>ĐĂNG BÀI KHAI THỊ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -506,7 +506,16 @@
 
     <!-- Giao diện ứng dụng chính -->
     <div id="app-container" class="hidden">
-        <div class="fixed inset-0 bg-[#fffbbe] p-4 md:p-8 pb-24 md:pb-8 flex flex-col" style="z-index: 10;">
+        <!-- START: Thay đổi để tối ưu mobile -->
+        <!--
+            - Đã xóa class `fixed inset-0` và `style="z-index: 10;"`.
+            - Đã thêm `min-h-screen` để đảm bảo nội dung chiếm toàn bộ chiều cao trên mobile.
+            - Đã thêm các class responsive `md:fixed md:inset-0 md:z-10` để giữ lại giao diện cũ trên desktop.
+            - Thay đổi này cho phép toàn bộ trang cuộn trên mobile, mang lại trải nghiệm tự nhiên hơn.
+        -->
+        <div class="min-h-screen md:fixed md:inset-0 bg-[#fffbbe] p-4 md:p-8 pb-24 md:pb-8 flex flex-col md:z-10">
+        <!-- END: Thay đổi để tối ưu mobile -->
+
             <!-- Header cho Desktop -->
             <header class="flex-shrink-0 hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
                 <div class="flex items-center gap-4">
@@ -522,7 +531,14 @@
             </header>
             
             <!-- Vùng làm việc chính -->
-            <main class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col overflow-y-auto min-h-0">
+            <!-- START: Thay đổi để tối ưu mobile -->
+            <!--
+                - Đã thay `overflow-y-auto` bằng `md:overflow-y-auto`.
+                - Trên mobile, vùng main sẽ không tự cuộn nữa mà sẽ giãn ra, để cho body của trang xử lý việc cuộn.
+                - Trên desktop, vùng main sẽ cuộn để giữ header cố định.
+            -->
+            <main class="flex-grow bg-white rounded-xl shadow-lg p-4 sm:p-6 flex flex-col md:overflow-y-auto min-h-0">
+            <!-- END: Thay đổi để tối ưu mobile -->
                 <textarea id="post-title-input" class="w-full text-lg md:text-xl font-bold border-none focus:ring-0 p-2 mb-2 md:mb-4 bg-transparent resize-none overflow-hidden flex-shrink-0" placeholder="Nhập tiêu đề..." rows="1"></textarea>
                 
                 <div id="labels-wrapper" class="relative mb-4 flex-shrink-0">
