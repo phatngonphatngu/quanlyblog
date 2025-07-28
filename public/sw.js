@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blogger-app-v3'; // Thay đổi phiên bản cache để buộc cập nhật
+const CACHE_NAME = 'blogger-app-v4'; // Thay đổi phiên bản cache để buộc cập nhật
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -41,44 +41,47 @@ self.addEventListener('activate', event => {
 
 // Sự kiện fetch: Quyết định lấy tài nguyên từ mạng hay cache
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Bỏ qua các yêu cầu không phải GET
+  if (request.method !== 'GET') {
     return;
   }
 
-  const url = new URL(event.request.url);
-
-  // *** START: SỬA LỖI XÁC THỰC (TRIỆT ĐỂ HƠN) ***
-
-  // Chiến lược 1: LUÔN LẤY TỪ MẠNG cho các yêu cầu API và script xác thực của Google.
-  // Đây là thay đổi quan trọng nhất để tránh lỗi "đang khởi tạo".
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('google.com')) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // Chiến lược 2: LẤY TỪ MẠNG TRƯỚC cho trang chính (khi người dùng mở app).
-  if (event.request.mode === 'navigate') {
+  // Chiến lược: Network First cho HTML (khi mở app) và các script của Google
+  // Đây là giải pháp triệt để cho vấn đề đăng nhập.
+  if (request.mode === 'navigate' || url.hostname.includes('google.com') || url.hostname.includes('googleapis.com')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
       .catch(() => {
-        // Nếu không có mạng, mới dùng đến cache.
-        return caches.match('/');
+        // Nếu không có mạng, chỉ fallback cho trang chính để app vẫn mở được offline
+        if (request.mode === 'navigate') {
+            return caches.match('/');
+        }
+        // Các request khác tới Google nếu lỗi mạng sẽ bị fail, đây là hành vi đúng.
       })
     );
     return;
   }
-  
-  // Chiến lược 3: LẤY TỪ CACHE TRƯỚC cho các tài nguyên tĩnh khác (CSS, JS, Fonts) để tăng tốc độ.
+
+  // Chiến lược: Stale-While-Revalidate cho các tài nguyên tĩnh khác (CSS, JS, Fonts)
+  // Phục vụ từ cache ngay lập tức để app nhanh, sau đó cập nhật cache dưới nền.
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Nếu có trong cache, trả về luôn.
-        if (response) {
-          return response;
-        }
-        // Nếu không, tải từ mạng và lưu vào cache cho lần sau.
-        return fetch(event.request);
+    caches.match(request)
+      .then(cachedResponse => {
+        const fetchPromise = fetch(request).then(networkResponse => {
+          // Nếu fetch thành công, cập nhật cache
+          caches.open(CACHE_NAME).then(cache => {
+            if (networkResponse) {
+                cache.put(request, networkResponse.clone());
+            }
+          });
+          return networkResponse;
+        });
+
+        // Trả về phiên bản cache ngay lập tức (nếu có), nếu không thì đợi fetch hoàn thành.
+        return cachedResponse || fetchPromise;
       })
   );
-  // *** END: SỬA LỖI XÁC THỰC ***
 });
