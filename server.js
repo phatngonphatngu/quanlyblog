@@ -65,7 +65,7 @@ app.post('/api/labels', async (req, res) => {
     }
 });
 
-// *** MỚI: Endpoint để lấy danh sách bài viết (có phân trang) ***
+// Endpoint để lấy danh sách bài viết (có phân trang)
 app.post('/api/posts', async (req, res) => {
     const { accessToken, blogId, pageToken } = req.body;
     if (!accessToken || !blogId) return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
@@ -86,7 +86,7 @@ app.post('/api/posts', async (req, res) => {
     }
 });
 
-// *** MỚI: Endpoint để lấy nội dung một bài viết cụ thể ***
+// Endpoint để lấy nội dung một bài viết cụ thể
 app.post('/api/post/get', async (req, res) => {
     const { accessToken, blogId, postId } = req.body;
     if (!accessToken || !blogId || !postId) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
@@ -105,7 +105,7 @@ app.post('/api/post/get', async (req, res) => {
 });
 
 
-// API Endpoint để tạo bài viết mới (đổi tên từ /publish)
+// API Endpoint để tạo bài viết mới
 app.post('/api/post/create', async (req, res) => {
     const { blogId, title, content, accessToken, labels } = req.body;
     if (!blogId || !title || !content || !accessToken) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
@@ -127,7 +127,7 @@ app.post('/api/post/create', async (req, res) => {
     }
 });
 
-// *** MỚI: Endpoint để cập nhật bài viết đã có ***
+// Endpoint để cập nhật bài viết đã có
 app.patch('/api/post/update', async (req, res) => {
     const { blogId, postId, title, content, accessToken, labels } = req.body;
     if (!blogId || !postId || !title || !content || !accessToken) return res.status(400).json({ error: 'Thiếu thông tin cần thiết.' });
@@ -149,6 +149,37 @@ app.patch('/api/post/update', async (req, res) => {
     }
 });
 
+// *** START: SỬA LỖI - Bổ sung Endpoint để XÓA bài viết ***
+app.delete('/api/post/delete', async (req, res) => {
+    const { blogId, postId, accessToken } = req.body;
+    if (!blogId || !postId || !accessToken) {
+        return res.status(400).json({ error: 'Thiếu thông tin cần thiết để xóa.' });
+    }
+    if (!API_KEY) {
+        return res.status(500).json({ error: 'API Key không được cấu hình.' });
+    }
+
+    const apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/${postId}?key=${API_KEY}`;
+    
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        // Blogger API trả về 204 No Content khi thành công, không có body JSON
+        if (response.status === 204) {
+            return res.status(204).send();
+        }
+
+        // Nếu có lỗi, đọc và gửi lại lỗi đó
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Lỗi không xác định từ Blogger API: ${response.status}`);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// *** END: SỬA LỖI ***
 
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
