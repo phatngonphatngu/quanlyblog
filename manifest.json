@@ -1,0 +1,21 @@
+{
+  "name": "Trình Đăng Bài Blogger",
+  "short_name": "Đăng Bài",
+  "description": "Ứng dụng đăng bài và quản lý nội dung cho Blogger.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
