@@ -160,6 +160,14 @@
                             fetchUserInfoAndBlogs();
                         }
                     },
+                    error_callback: (error) => {
+                        // Ghi lại lỗi để gỡ lỗi, nhưng không hiển thị chi tiết cho người dùng
+                        console.error("Lỗi xác thực Google:", error); 
+                        // Hiển thị thông báo thân thiện cho người dùng
+                        setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
+                        // Kích hoạt lại nút đăng nhập để người dùng có thể thử lại
+                        document.getElementById('login-button').disabled = false;
+                    },
                 });
                 authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
                 document.getElementById('login-button').disabled = false;
@@ -463,7 +471,10 @@
             initializeQuill();
 
             // Gán sự kiện
-            document.getElementById('login-button').addEventListener('click', () => tokenClient?.requestAccessToken({}));
+            document.getElementById('login-button').addEventListener('click', () => {
+                document.getElementById('login-button').disabled = true; // Vô hiệu hóa nút ngay khi nhấn
+                tokenClient?.requestAccessToken({});
+            });
             document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
             document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
             document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
