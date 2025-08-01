@@ -500,7 +500,6 @@
                     e.preventDefault(); addLabelsFromInput();
                 }
             });
-            labelsInput.addEventListener('blur', () => addLabelsFromInput());
             document.addEventListener('click', (e) => { 
                 if (labelsWrapper && !labelsWrapper.contains(e.target)) {
                     labelsSuggestions.classList.add('hidden'); 
