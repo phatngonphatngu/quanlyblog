@@ -182,7 +182,7 @@
             }
         }
 
-        async function fetchUserInfoAndBlogs() {
+		async function fetchUserInfoAndBlogs() {
             try {
                 setStatus('Đang xác thực và tải dữ liệu...', 'info');
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
@@ -199,6 +199,14 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token })
                 });
+                
+                // *** DÒNG CODE MỚI BỔ SUNG ***
+                if (backendResponse.status === 401) {
+                    setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+                    handleLogout(); // Tự động đăng xuất và tải lại trang
+                    return;
+                }
+                
                 const blogData = await backendResponse.json();
                 if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
 
