@@ -149,7 +149,7 @@ app.patch('/api/post/update', async (req, res) => {
     }
 });
 
-// *** START: SỬA LỖI - Bổ sung Endpoint để XÓA bài viết ***
+// Endpoint để XÓA bài viết
 app.delete('/api/post/delete', async (req, res) => {
     const { blogId, postId, accessToken } = req.body;
     if (!blogId || !postId || !accessToken) {
@@ -167,19 +167,68 @@ app.delete('/api/post/delete', async (req, res) => {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        // Blogger API trả về 204 No Content khi thành công, không có body JSON
         if (response.status === 204) {
             return res.status(204).send();
         }
 
-        // Nếu có lỗi, đọc và gửi lại lỗi đó
         const errorData = await response.json();
         throw new Error(errorData.error?.message || `Lỗi không xác định từ Blogger API: ${response.status}`);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-// *** END: SỬA LỖI ***
+
+// *** START: TÌM BÀI VIẾT TRÙNG LẶP ***
+app.post('/api/posts/find-duplicates', async (req, res) => {
+    const { accessToken, blogId } = req.body;
+    if (!accessToken || !blogId) return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
+
+    let allPosts = [];
+    let nextPageToken = null;
+    try {
+        // Lấy tất cả bài viết, xử lý phân trang
+        do {
+            let apiUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts?key=${API_KEY}&fetchBodies=false&fields=nextPageToken,items(id,title,published)&maxResults=500&orderBy=published`;
+            if (nextPageToken) apiUrl += `&pageToken=${nextPageToken}`;
+            
+            const response = await fetch(apiUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.error?.message || 'Không thể lấy danh sách bài đăng.');
+            if (data.items) allPosts.push(...data.items);
+            nextPageToken = data.nextPageToken;
+        } while (nextPageToken);
+
+        // Gom nhóm bài viết theo tiêu đề để tìm trùng lặp
+        const postsByTitle = allPosts.reduce((acc, post) => {
+            const title = post.title.trim();
+            if (!acc[title]) {
+                acc[title] = [];
+            }
+            acc[title].push(post);
+            return acc;
+        }, {});
+
+        // Lọc ra các nhóm có nhiều hơn 1 bài viết (bài trùng lặp)
+        const duplicates = Object.values(postsByTitle)
+            .filter(group => group.length > 1)
+            .map(group => {
+                // Sắp xếp để giữ lại bài mới nhất, các bài cũ hơn sẽ bị coi là trùng lặp
+                group.sort((a, b) => new Date(b.published) - new Date(a.published));
+                return {
+                    title: group[0].title,
+                    posts: group // Trả về tất cả các bài, bao gồm cả bài gốc
+                };
+            });
+
+        res.status(200).json({ duplicates });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Lỗi server khi tìm bài trùng lặp: ' + error.message });
+    }
+});
+// *** END: TÌM BÀI VIẾT TRÙNG LẶP ***
 
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
