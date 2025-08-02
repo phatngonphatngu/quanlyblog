@@ -87,7 +87,6 @@
             'tuyen51189@gmail.com',
             'kiwi31072023@gmail.com',
         ];
-        const SUPER_ADMIN_EMAIL = 'phatngonphatngu@gmail.com'; // Email quản trị viên cấp cao
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // Biến toàn cục
@@ -99,8 +98,7 @@
         // Biến DOM Elements
         let authContainer, appContainer, postTitleInput, labelsWrapper, labelsPillsContainer, 
             labelsInput, labelsSuggestions, authMessage, findPostModal, closeModalButton, 
-            postListContainer, loadMorePostsButton, searchPostInput, deleteConfirmModal,
-            duplicatePostsModal; // Thêm biến cho modal mới
+            postListContainer, loadMorePostsButton, searchPostInput, deleteConfirmModal;
 
         // Hàm tiện ích cho thông báo nổi
         function setStatus(message, type = 'info', duration = 4000) {
@@ -167,8 +165,11 @@
                         }
                     },
                     error_callback: (error) => {
+                        // Ghi lại lỗi để gỡ lỗi, nhưng không hiển thị chi tiết cho người dùng
                         console.error("Lỗi xác thực Google:", error); 
+                        // Hiển thị thông báo thân thiện cho người dùng
                         setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
+                        // Kích hoạt lại nút đăng nhập để người dùng có thể thử lại
                         document.getElementById('login-button').disabled = false;
                     },
                 });
@@ -186,13 +187,6 @@
                 setStatus('Đang xác thực và tải dữ liệu...', 'info');
                 const profileResponse = await gapi.client.oauth2.userinfo.get();
                 const userEmail = profileResponse.result.email;
-
-                // *** START: KIỂM TRA SUPER ADMIN ***
-                if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
-                    document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
-                }
-                // *** END: KIỂM TRA SUPER ADMIN ***
-
                 const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
                 if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
                     setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
@@ -206,9 +200,10 @@
                     body: JSON.stringify({ accessToken: token.access_token })
                 });
                 
+                // *** DÒNG CODE MỚI BỔ SUNG ***
                 if (backendResponse.status === 401) {
                     setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
-                    handleLogout();
+                    handleLogout(); // Tự động đăng xuất và tải lại trang
                     return;
                 }
                 
@@ -452,118 +447,6 @@
             }
         }
 
-        // *** START: LOGIC TÌM VÀ XÓA BÀI TRÙNG LẶP ***
-        async function findDuplicatePosts() {
-            setStatus('Đang tìm các bài viết trùng lặp, vui lòng chờ...', 'info', 10000);
-            const token = gapi.client.getToken();
-            if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
-
-            try {
-                const response = await fetch('/api/posts/find-duplicates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Lỗi không xác định từ server.');
-
-                const duplicateListContainer = document.getElementById('duplicate-list');
-                duplicateListContainer.innerHTML = '';
-
-                if (data.duplicates && data.duplicates.length > 0) {
-                    data.duplicates.forEach(group => {
-                        const groupEl = document.createElement('div');
-                        groupEl.className = 'p-4 border rounded-lg bg-gray-50';
-                        const titleEl = document.createElement('h3');
-                        titleEl.className = 'font-bold text-lg mb-3 pb-2 border-b';
-                        titleEl.textContent = group.title;
-                        groupEl.appendChild(titleEl);
-
-                        const postListEl = document.createElement('div');
-                        postListEl.className = 'space-y-2';
-                        
-                        // Bài mới nhất (bài gốc) sẽ được hiển thị nhưng không cho phép chọn xóa
-                        const originalPost = group.posts[0];
-                        const originalPostEl = document.createElement('div');
-                        originalPostEl.className = 'flex items-center p-2 rounded-md bg-green-100 text-green-800';
-                        originalPostEl.innerHTML = `
-                            <svg class="w-5 h-5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                            <span><strong>Giữ lại:</strong> ${originalPost.title} (Đăng lúc: ${new Date(originalPost.published).toLocaleString('vi-VN')})</span>`;
-                        postListEl.appendChild(originalPostEl);
-
-
-                        // Các bài cũ hơn (bản sao) sẽ có checkbox để chọn xóa
-                        group.posts.slice(1).forEach(post => {
-                            const postEl = document.createElement('label');
-                            postEl.className = 'flex items-center p-2 rounded-md hover:bg-red-100 cursor-pointer';
-                            postEl.innerHTML = `
-                                <input type="checkbox" data-post-id="${post.id}" class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500 mr-3 duplicate-checkbox" checked>
-                                <span class="text-red-700"><strong>Xóa:</strong> ${post.title} (Đăng lúc: ${new Date(post.published).toLocaleString('vi-VN')})</span>
-                            `;
-                            postListEl.appendChild(postEl);
-                        });
-                        groupEl.appendChild(postListEl);
-                        duplicateListContainer.appendChild(groupEl);
-                    });
-                    setStatus('Đã tìm thấy các bài viết trùng lặp.', 'success');
-                    duplicatePostsModal.classList.remove('hidden');
-                } else {
-                    setStatus('Tuyệt vời! Không tìm thấy bài viết nào bị trùng lặp.', 'success');
-                }
-
-            } catch (err) {
-                setStatus(`Lỗi khi tìm bài trùng lặp: ${err.message}`, 'error');
-            }
-        }
-
-        async function deleteSelectedDuplicates() {
-            const checkboxes = document.querySelectorAll('.duplicate-checkbox:checked');
-            const postIdsToDelete = Array.from(checkboxes).map(cb => cb.dataset.postId);
-
-            if (postIdsToDelete.length === 0) {
-                setStatus('Vui lòng chọn ít nhất một bài viết để xóa.', 'error');
-                return;
-            }
-
-            if (!confirm(`Bạn có chắc muốn xóa ${postIdsToDelete.length} bài viết đã chọn không? Hành động này không thể hoàn tác.`)) {
-                return;
-            }
-
-            setStatus(`Đang xóa ${postIdsToDelete.length} bài viết...`, 'info', 15000);
-            const token = gapi.client.getToken();
-            let successCount = 0;
-            let errorCount = 0;
-
-            for (const postId of postIdsToDelete) {
-                try {
-                    const response = await fetch('/api/post/delete', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postId })
-                    });
-                    if (response.status === 204) {
-                        successCount++;
-                    } else {
-                        const errorData = await response.json();
-                        console.error(`Lỗi khi xóa post ${postId}:`, errorData.error?.message);
-                        errorCount++;
-                    }
-                } catch (err) {
-                    console.error(`Lỗi nghiêm trọng khi xóa post ${postId}:`, err.message);
-                    errorCount++;
-                }
-            }
-
-            let finalMessage = `Hoàn tất! Đã xóa thành công ${successCount} bài viết.`;
-            if (errorCount > 0) {
-                finalMessage += ` Có ${errorCount} lỗi xảy ra, vui lòng kiểm tra console để biết chi tiết.`;
-            }
-            setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
-
-            duplicatePostsModal.classList.add('hidden');
-        }
-        // *** END: LOGIC TÌM VÀ XÓA BÀI TRÙNG LẶP ***
-
         function initializeQuill() {
              quill = new Quill('#editor', {
                 modules: { toolbar: true }, 
@@ -596,13 +479,12 @@
             loadMorePostsButton = document.getElementById('load-more-posts-button');
             searchPostInput = document.getElementById('search-post-input');
             deleteConfirmModal = document.getElementById('delete-confirm-modal');
-            duplicatePostsModal = document.getElementById('duplicate-posts-modal');
             
             initializeQuill();
 
             // Gán sự kiện
             document.getElementById('login-button').addEventListener('click', () => {
-                document.getElementById('login-button').disabled = true;
+                document.getElementById('login-button').disabled = true; // Vô hiệu hóa nút ngay khi nhấn
                 tokenClient?.requestAccessToken({});
             });
             document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
@@ -652,14 +534,6 @@
                 deleteConfirmModal.classList.add('hidden');
                 postToDelete = { id: null, title: null };
             });
-
-            // *** START: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
-            document.getElementById('find-duplicates-button').addEventListener('click', findDuplicatePosts);
-            document.getElementById('close-duplicates-modal-button').addEventListener('click', () => {
-                duplicatePostsModal.classList.add('hidden');
-            });
-            document.getElementById('delete-selected-duplicates-button').addEventListener('click', deleteSelectedDuplicates);
-            // *** END: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
         });
     </script>
     
@@ -693,7 +567,6 @@
                 <h1 class="text-xl font-bold">Trình Soạn Thảo</h1>
                 <button class="new-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Bài viết mới</button>
                 <button class="find-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Tìm bài viết</button>
-                <button id="find-duplicates-button" class="super-admin-feature hidden px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">Tìm bài trùng lặp</button>
             </div>
             <div class="flex items-center gap-4">
                 <button class="logout-button text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
@@ -773,27 +646,6 @@
             <button id="cancel-delete-button" class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">
                 Không, hủy bỏ
             </button>
-        </div>
-    </div>
-
-    <!-- Modal tìm bài viết trùng lặp -->
-    <div id="duplicate-posts-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[100] p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col m-4 h-[90vh]">
-            <div class="p-4 border-b flex-shrink-0">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-xl font-bold">Các bài viết bị trùng lặp</h2>
-                    <button id="close-duplicates-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
-                </div>
-                <p class="text-sm text-gray-500 mt-1">Hệ thống sẽ tự động giữ lại bài viết được đăng gần đây nhất và đề xuất xóa các bài cũ hơn.</p>
-            </div>
-            <div id="duplicate-list" class="flex-grow overflow-y-auto p-4 space-y-4 bg-gray-50">
-                <!-- Nội dung sẽ được chèn bằng JS -->
-            </div>
-            <div class="p-4 border-t flex-shrink-0 text-right space-x-2">
-                <button id="delete-selected-duplicates-button" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:bg-gray-400">
-                    Xóa các mục đã chọn
-                </button>
-            </div>
         </div>
     </div>
     
