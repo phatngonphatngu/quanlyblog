@@ -185,57 +185,55 @@
         }
 
 		async function fetchUserInfoAndBlogs() {
-            try {
-                setStatus('Đang xác thực và tải dữ liệu...', 'info');
-                const profileResponse = await gapi.client.oauth2.userinfo.get();
-                const userEmail = profileResponse.result.email;
-                const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+			try {
+				setStatus('Đang xác thực và tải dữ liệu...', 'info');
+				const profileResponse = await gapi.client.oauth2.userinfo.get();
 				const userEmail = profileResponse.result.email;
-                if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
-                    setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
-                    setTimeout(handleLogout, 4000); 
-                    return;
-                }
+
+				// 1. Kiểm tra quyền truy cập của người dùng
+				const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+				if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
+					setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
+					setTimeout(handleLogout, 4000); 
+					return;
+				}
 				
-				// *** START: KIỂM TRA SUPER ADMIN ***
+				// 2. Kiểm tra và hiển thị tính năng cho Super Admin
 				if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
 					document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
 				}
-				// *** END: KIỂM TRA SUPER ADMIN ***
 
-				const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+				// 3. Lấy danh sách blog
+				const token = gapi.client.getToken();
+				const backendResponse = await fetch('/api/blogs', {
+					method: 'POST', headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accessToken: token.access_token })
+				});
+				
+				if (backendResponse.status === 401) {
+					setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+					handleLogout();
+					return;
+				}
+				
+				const blogData = await backendResponse.json();
+				if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
 
-                const token = gapi.client.getToken();
-                const backendResponse = await fetch('/api/blogs', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accessToken: token.access_token })
-                });
-                
-                // *** DÒNG CODE MỚI BỔ SUNG ***
-                if (backendResponse.status === 401) {
-                    setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
-                    handleLogout(); // Tự động đăng xuất và tải lại trang
-                    return;
-                }
-                
-                const blogData = await backendResponse.json();
-                if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
-
-                const blogs = blogData.items;
-                if (blogs && blogs.length > 0) {
-                    selectedBlogId = blogs[0].id;
-                    updateUI(true); 
-                    setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn...', 'info');
-                    fetchAndStoreLabels(selectedBlogId); 
-                } else {
-                    setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
-                    handleLogout();
-                }
-            } catch (err) {
-                setStatus(`Lỗi khi tải dữ liệu: ${err.message}`, 'error');
-                handleLogout();
-            }
-        }
+				const blogs = blogData.items;
+				if (blogs && blogs.length > 0) {
+					selectedBlogId = blogs[0].id;
+					updateUI(true); 
+					setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn...', 'info');
+					fetchAndStoreLabels(selectedBlogId); 
+				} else {
+					setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
+					handleLogout();
+				}
+			} catch (err) {
+				setStatus(`Lỗi khi tải dữ liệu: ${err.message}`, 'error');
+				handleLogout();
+			}
+		}
 
         function updateUI(isLoggedIn) {
             authContainer.classList.toggle('hidden', isLoggedIn);
