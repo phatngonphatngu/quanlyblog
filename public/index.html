@@ -520,38 +520,50 @@
 			}
 		}
 
+		// Helper function to create a delay
+		function sleep(ms) {
+			return new Promise(resolve => setTimeout(resolve, ms));
+		}
+
 		async function deleteSelectedDuplicates() {
 			const checkboxes = document.querySelectorAll('.duplicate-checkbox:checked');
 			const postIdsToDelete = Array.from(checkboxes).map(cb => cb.dataset.postId);
+			const totalToDelete = postIdsToDelete.length;
 
-			if (postIdsToDelete.length === 0) {
+			if (totalToDelete === 0) {
 				setStatus('Vui lòng chọn ít nhất một bài viết để xóa.', 'error');
 				return;
 			}
 
-			if (!confirm(`Bạn có chắc muốn xóa ${postIdsToDelete.length} bài viết đã chọn không? Hành động này không thể hoàn tác.`)) {
+			if (!confirm(`Bạn có chắc muốn xóa ${totalToDelete} bài viết đã chọn không? Quá trình này có thể mất một lúc và không thể hoàn tác.`)) {
 				return;
 			}
 
-			setStatus(`Đang xóa ${postIdsToDelete.length} bài viết...`, 'info');
 			const token = gapi.client.getToken();
-
-			// Sử dụng vòng lặp để gọi API xóa cho từng bài
-			// Blogger API không hỗ trợ xóa hàng loạt, phải gọi tuần tự
 			let successCount = 0;
 			let errorCount = 0;
 
-			for (const postId of postIdsToDelete) {
+			// Vô hiệu hóa nút xóa để tránh bấm nhầm
+			document.getElementById('delete-selected-duplicates-button').disabled = true;
+
+			for (let i = 0; i < totalToDelete; i++) {
+				const postId = postIdsToDelete[i];
+				// Cập nhật trạng thái cho người dùng
+				setStatus(`Đang xóa bài ${i + 1} / ${totalToDelete}...`, 'info', 5000);
+
 				try {
+					// Sử dụng phương thức POST như đã sửa ở lần trước
 					const response = await fetch('/api/post/delete', {
-						method: 'POST', // SỬA "DELETE" THÀNH "POST"
+						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postId })
 					});
+
 					if (response.status === 204) {
 						successCount++;
 					} else {
-						const errorData = await response.json();
+						// Cố gắng đọc lỗi từ server, nếu không được thì hiển thị lỗi chung
+						const errorData = await response.json().catch(() => ({ error: { message: `Lỗi không xác định từ máy chủ: ${response.status}` } }));
 						console.error(`Lỗi khi xóa post ${postId}:`, errorData.error?.message);
 						errorCount++;
 					}
@@ -559,7 +571,16 @@
 					console.error(`Lỗi nghiêm trọng khi xóa post ${postId}:`, err.message);
 					errorCount++;
 				}
+
+				// Thêm khoảng nghỉ 1 giây giữa các yêu cầu để tránh bị chặn
+				// Không cần nghỉ sau khi đã xóa yêu cầu cuối cùng
+				if (i < totalToDelete - 1) {
+					await sleep(1000); // 1000ms = 1 giây
+				}
 			}
+
+			// Kích hoạt lại nút xóa sau khi hoàn tất
+			document.getElementById('delete-selected-duplicates-button').disabled = false;
 
 			let finalMessage = `Hoàn tất! Đã xóa thành công ${successCount} bài viết.`;
 			if (errorCount > 0) {
@@ -567,7 +588,9 @@
 			}
 			setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
 
+			// Ẩn cửa sổ và làm mới lại danh sách bài trùng lặp để xem kết quả
 			duplicatePostsModal.classList.add('hidden');
+			findDuplicatePosts(); // Tự động chạy lại để làm mới
 		}
 		
 		// *** END: LOGIC TÌM VÀ XÓA BÀI TRÙNG LẶP ***
