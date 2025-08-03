@@ -133,56 +133,56 @@
         function gisLoaded() { gisReady = true; tryInitApp(); }
         function tryInitApp() { if (gapiReady && gisReady) initializeApp(); }
 
-        async function initializeApp() {
-            try {
-                authMessage.textContent = 'Đang tải cấu hình...';
-                const response = await fetch('/api/config');
-                if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
-                const config = await response.json();
-                if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
+		async function initializeApp() {
+			try {
+				authMessage.textContent = 'Đang tải cấu hình...';
+				const response = await fetch('/api/config');
+				if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
+				const config = await response.json();
+				if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
 
-                await gapi.client.load('oauth2', 'v2');
-                const savedToken = localStorage.getItem('google_auth_token');
-                const savedExpiration = localStorage.getItem('google_auth_token_expiration');
+				// *** SỬA LỖI QUAN TRỌNG: Chờ thư viện oauth2 tải xong ***
+				await gapi.client.load('oauth2', 'v2');
+				// *** KẾT THÚC SỬA LỖI ***
 
-                if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
-                    authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
-                    gapi.client.setToken({ access_token: savedToken });
-                    fetchUserInfoAndBlogs();
-                    return;
-                }
-                
-                localStorage.clear();
-                tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: config.clientId,
-                    scope: SCOPES,
-                    callback: (tokenResponse) => {
-                        if (tokenResponse && tokenResponse.access_token) {
-                            const expiresIn = (tokenResponse.expires_in || 3600) - 60;
-                            const expirationTime = Date.now() + expiresIn * 1000;
-                            localStorage.setItem('google_auth_token', tokenResponse.access_token);
-                            localStorage.setItem('google_auth_token_expiration', expirationTime);
-                            gapi.client.setToken(tokenResponse);
-                            fetchUserInfoAndBlogs();
-                        }
-                    },
-                    error_callback: (error) => {
-                        // Ghi lại lỗi để gỡ lỗi, nhưng không hiển thị chi tiết cho người dùng
-                        console.error("Lỗi xác thực Google:", error); 
-                        // Hiển thị thông báo thân thiện cho người dùng
-                        setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
-                        // Kích hoạt lại nút đăng nhập để người dùng có thể thử lại
-                        document.getElementById('login-button').disabled = false;
-                    },
-                });
-                authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
-                document.getElementById('login-button').disabled = false;
-            } catch (error) {
-                console.error("LỖI KHỞI TẠO:", error);
-                authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
-                document.getElementById('login-button').disabled = true;
-            }
-        }
+				const savedToken = localStorage.getItem('google_auth_token');
+				const savedExpiration = localStorage.getItem('google_auth_token_expiration');
+
+				if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
+					authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
+					gapi.client.setToken({ access_token: savedToken });
+					fetchUserInfoAndBlogs();
+					return;
+				}
+				
+				localStorage.clear();
+				tokenClient = google.accounts.oauth2.initTokenClient({
+					client_id: config.clientId,
+					scope: SCOPES,
+					callback: (tokenResponse) => {
+						if (tokenResponse && tokenResponse.access_token) {
+							const expiresIn = (tokenResponse.expires_in || 3600) - 60;
+							const expirationTime = Date.now() + expiresIn * 1000;
+							localStorage.setItem('google_auth_token', tokenResponse.access_token);
+							localStorage.setItem('google_auth_token_expiration', expirationTime);
+							gapi.client.setToken(tokenResponse);
+							fetchUserInfoAndBlogs();
+						}
+					},
+					error_callback: (error) => {
+						console.error("Lỗi xác thực Google:", error); 
+						setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
+						document.getElementById('login-button').disabled = false;
+					},
+				});
+				authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+				document.getElementById('login-button').disabled = false;
+			} catch (error) {
+				console.error("LỖI KHỞI TẠO:", error);
+				authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
+				document.getElementById('login-button').disabled = true;
+			}
+		}
 
 		async function fetchUserInfoAndBlogs() {
 			try {
@@ -574,7 +574,7 @@
 				}
 
 				if (i < totalToDelete - 1) {
-					await sleep(1000); // Khoảng nghỉ 1 giây
+					await sleep(1500); // Khoảng nghỉ 1 giây
 				}
 			}
 
