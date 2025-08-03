@@ -150,7 +150,7 @@ app.patch('/api/post/update', async (req, res) => {
 });
 
 // *** START: SỬA LỖI - Bổ sung Endpoint để XÓA bài viết ***
-app.delete('/api/post/delete', async (req, res) => {
+app.post('/api/post/delete', async (req, res) => {
     const { blogId, postId, accessToken } = req.body;
     if (!blogId || !postId || !accessToken) {
         return res.status(400).json({ error: 'Thiếu thông tin cần thiết để xóa.' });
