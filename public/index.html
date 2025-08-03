@@ -663,17 +663,52 @@
 			loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
 			searchPostInput.addEventListener('input', filterPostsInModal);
 			
+			// ================================================================
+			// *** BẮT ĐẦU SỬA LỖI XUNG ĐỘT CLICK VÀ BLUR ***
+
+			let isMouseOverSuggestions = false; // Cờ để kiểm tra vị trí chuột
+
+			// Gán sự kiện cho ô nhập nhãn
 			labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
+			
 			labelsInput.addEventListener('keydown', (e) => {
-				if (e.key === 'Enter' || e.key === ',') {
-					e.preventDefault(); addLabelsFromInput();
+				// Sử dụng cả e.key và e.keyCode để tương thích tốt hơn với bộ gõ (IME)
+				if (e.key === 'Enter' || e.keyCode === 13 || e.key === ',') {
+					e.preventDefault(); // Ngăn hành vi mặc định
+					addLabelsFromInput();
 				}
 			});
+			
+			// Xử lý khi người dùng rời khỏi ô input
+			labelsInput.addEventListener('blur', () => {
+				// Đợi một chút để xem người dùng có bấm vào gợi ý không
+				setTimeout(() => {
+					// Chỉ thêm nhãn nếu chuột không ở trên vùng gợi ý
+					if (!isMouseOverSuggestions && labelsInput.value.trim().length > 0) {
+						addLabelsFromInput();
+					}
+				}, 150); // Khoảng chờ 150ms là đủ để xử lý click
+			});
+
+			// Khi chuột đi vào vùng gợi ý, bật cờ lên
+			labelsSuggestions.addEventListener('mouseenter', () => {
+				isMouseOverSuggestions = true;
+			});
+
+			// Khi chuột rời khỏi vùng gợi ý, tắt cờ đi
+			labelsSuggestions.addEventListener('mouseleave', () => {
+				isMouseOverSuggestions = false;
+			});
+
+			// Ẩn gợi ý khi bấm ra ngoài khu vực nhãn (giữ nguyên)
 			document.addEventListener('click', (e) => { 
 				if (labelsWrapper && !labelsWrapper.contains(e.target)) {
 					labelsSuggestions.classList.add('hidden'); 
 				}
 			});
+
+			// *** KẾT THÚC SỬA LỖI ***
+			// ================================================================
 			
 			postTitleInput.addEventListener('input', () => {
 				postTitleInput.style.height = 'auto';
