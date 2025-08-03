@@ -397,35 +397,36 @@
             deleteConfirmModal.classList.remove('hidden');
         }
 
-        async function executeActualDelete() {
-            if (!postToDelete.id) return;
-            deleteConfirmModal.classList.add('hidden');
-            setStatus('Đang xóa bài viết...', 'info');
-            const token = gapi.client.getToken();
-            if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
-            
-            try {
-                const response = await fetch('/api/post/delete', {
-                    method: 'POST', // SỬA "DELETE" THÀNH "POST"
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
-                });
-                
-                if (!response.ok && response.status !== 204) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error?.message || `Lỗi từ máy chủ: ${response.status}`);
-                }
-                
-                setStatus('Xóa bài viết thành công!', 'success');
-                document.getElementById(`post-item-${postToDelete.id}`)?.remove();
+		async function executeActualDelete() {
+			if (!postToDelete.id) return;
+			deleteConfirmModal.classList.add('hidden');
+			setStatus('Đang xóa bài viết...', 'info');
+			const token = gapi.client.getToken();
+			if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
 
-            } catch (err) {
-                console.error("CHI TIẾT LỖI XÓA:", err.message);
-                setStatus(`Lỗi khi xóa bài viết. Vui lòng kiểm tra lại server.`, 'error');
-            } finally {
-                postToDelete = { id: null, title: null };
-            }
-        }
+			try {
+				const response = await fetch('/api/post/delete', {
+					method: 'POST', // Đảm bảo đây là POST
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
+				});
+
+				if (response.status === 204) {
+					 setStatus('Xóa bài viết thành công!', 'success');
+					 document.getElementById(`post-item-${postToDelete.id}`)?.remove();
+				} else {
+					const errorData = await response.json();
+					// Sửa lỗi hiển thị: đọc trực tiếp từ errorData.error
+					throw new Error(errorData.error || `Lỗi từ máy chủ: ${response.status}`);
+				}
+
+			} catch (err) {
+				console.error("CHI TIẾT LỖI XÓA:", err.message);
+				setStatus(`Lỗi khi xóa bài viết: ${err.message}`, 'error');
+			} finally {
+				postToDelete = { id: null, title: null };
+			}
+		}
 
         async function savePost() {
             const title = postTitleInput.value.trim();
@@ -542,19 +543,17 @@
 			const token = gapi.client.getToken();
 			let successCount = 0;
 			let errorCount = 0;
+			let lastErrorMessage = '';
 
-			// Vô hiệu hóa nút xóa để tránh bấm nhầm
 			document.getElementById('delete-selected-duplicates-button').disabled = true;
 
 			for (let i = 0; i < totalToDelete; i++) {
 				const postId = postIdsToDelete[i];
-				// Cập nhật trạng thái cho người dùng
 				setStatus(`Đang xóa bài ${i + 1} / ${totalToDelete}...`, 'info', 5000);
 
 				try {
-					// Sử dụng phương thức POST như đã sửa ở lần trước
 					const response = await fetch('/api/post/delete', {
-						method: 'POST',
+						method: 'POST', // Đảm bảo đây là POST
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postId })
 					});
@@ -562,35 +561,32 @@
 					if (response.status === 204) {
 						successCount++;
 					} else {
-						// Cố gắng đọc lỗi từ server, nếu không được thì hiển thị lỗi chung
-						const errorData = await response.json().catch(() => ({ error: { message: `Lỗi không xác định từ máy chủ: ${response.status}` } }));
-						console.error(`Lỗi khi xóa post ${postId}:`, errorData.error?.message);
+						const errorData = await response.json();
+						// Sửa lỗi hiển thị: đọc trực tiếp từ errorData.error
+						lastErrorMessage = errorData.error || `Lỗi không xác định từ máy chủ: ${response.status}`;
+						console.error(`Lỗi khi xóa post ${postId}:`, lastErrorMessage);
 						errorCount++;
 					}
 				} catch (err) {
-					console.error(`Lỗi nghiêm trọng khi xóa post ${postId}:`, err.message);
+					lastErrorMessage = err.message;
+					console.error(`Lỗi nghiêm trọng khi xóa post ${postId}:`, lastErrorMessage);
 					errorCount++;
 				}
 
-				// Thêm khoảng nghỉ 1 giây giữa các yêu cầu để tránh bị chặn
-				// Không cần nghỉ sau khi đã xóa yêu cầu cuối cùng
 				if (i < totalToDelete - 1) {
-					await sleep(1000); // 1000ms = 1 giây
+					await sleep(1000); // Khoảng nghỉ 1 giây
 				}
 			}
 
-			// Kích hoạt lại nút xóa sau khi hoàn tất
 			document.getElementById('delete-selected-duplicates-button').disabled = false;
 
 			let finalMessage = `Hoàn tất! Đã xóa thành công ${successCount} bài viết.`;
 			if (errorCount > 0) {
-				finalMessage += ` Có ${errorCount} lỗi xảy ra, vui lòng kiểm tra console để biết chi tiết.`;
+				finalMessage += ` Có ${errorCount} lỗi xảy ra. Lỗi cuối cùng: ${lastErrorMessage}`;
 			}
 			setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
 
-			// Ẩn cửa sổ và làm mới lại danh sách bài trùng lặp để xem kết quả
-			duplicatePostsModal.classList.add('hidden');
-			findDuplicatePosts(); // Tự động chạy lại để làm mới
+			findDuplicatePosts();
 		}
 		
 		// *** END: LOGIC TÌM VÀ XÓA BÀI TRÙNG LẶP ***
