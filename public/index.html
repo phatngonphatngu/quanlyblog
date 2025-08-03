@@ -406,7 +406,7 @@
             
             try {
                 const response = await fetch('/api/post/delete', {
-                    method: 'DELETE', 
+                    method: 'POST', // SỬA "DELETE" THÀNH "POST"
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
                 });
@@ -544,7 +544,7 @@
 			for (const postId of postIdsToDelete) {
 				try {
 					const response = await fetch('/api/post/delete', {
-						method: 'DELETE',
+						method: 'POST', // SỬA "DELETE" THÀNH "POST"
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postId })
 					});
@@ -569,6 +569,7 @@
 
 			duplicatePostsModal.classList.add('hidden');
 		}
+		
 		// *** END: LOGIC TÌM VÀ XÓA BÀI TRÙNG LẶP ***
 
         function initializeQuill() {
