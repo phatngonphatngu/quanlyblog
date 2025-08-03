@@ -87,13 +87,13 @@
             'tuyen51189@gmail.com',
             'kiwi31072023@gmail.com',
         ];
-		const SUPER_ADMIN_EMAIL = 'phamanhtuan9368@gmail@gmail.com'; // <-- Thêm dòng này
+		const SUPER_ADMIN_EMAIL = 'phatngonphatngu@gmail.com'; // <-- Thêm dòng này
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // Biến toàn cục
         let tokenClient, quill, selectedBlogId = null, allAvailableLabels = [], editingPostId = null, postListPageToken = null;
         let selectedLabels = new Set();
-        let gapiReady = false, gisReady = false;
+        let gapiReady = false, gisReady = false, domReady = false; // <-- THÊM domReady
         let postToDelete = { id: null, title: null }; 
 
         // Biến DOM Elements
@@ -131,7 +131,13 @@
         // *** LUỒNG XÁC THỰC ***
         function gapiLoaded() { gapi.load('client', () => { gapiReady = true; tryInitApp(); }); }
         function gisLoaded() { gisReady = true; tryInitApp(); }
-        function tryInitApp() { if (gapiReady && gisReady) initializeApp(); }
+		// PHIÊN BẢN MỚI
+		function tryInitApp() {
+			// Thêm điều kiện domReady vào câu lệnh if
+			if (gapiReady && gisReady && domReady) {
+				initializeApp();
+			}
+		}
 
 		async function initializeApp() {
 			try {
@@ -607,90 +613,97 @@
             });
         }
         
-        document.addEventListener('DOMContentLoaded', () => {
-            // Gán biến
-            authContainer = document.getElementById('auth-container');
-            appContainer = document.getElementById('app-container');
-            postTitleInput = document.getElementById('post-title-input');
-            labelsWrapper = document.getElementById('labels-wrapper');
-            labelsPillsContainer = document.getElementById('labels-pills-container');
-            labelsInput = document.getElementById('labels-input');
-            labelsSuggestions = document.getElementById('labels-suggestions');
-            authMessage = document.getElementById('auth-message');
-            findPostModal = document.getElementById('find-post-modal');
-            closeModalButton = document.getElementById('close-modal-button');
-            postListContainer = document.getElementById('post-list');
-            loadMorePostsButton = document.getElementById('load-more-posts-button');
-            searchPostInput = document.getElementById('search-post-input');
-            deleteConfirmModal = document.getElementById('delete-confirm-modal');
-			duplicatePostsModal = document.getElementById('duplicate-posts-modal'); // <-- Thêm dòng này
-            
-            initializeQuill();
-
-            // Gán sự kiện
-            document.getElementById('login-button').addEventListener('click', () => {
-                document.getElementById('login-button').disabled = true; // Vô hiệu hóa nút ngay khi nhấn
-                tokenClient?.requestAccessToken({});
-            });
-            document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
-            document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
-            document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
-            document.querySelectorAll('.find-post-button').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    searchPostInput.value = '';
-                    findPostModal.classList.remove('hidden'); 
-                    fetchPostsForModal(); 
-                });
-            });
-            
-            closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
-            loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
-            searchPostInput.addEventListener('input', filterPostsInModal);
-            
-            labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
-            labelsInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault(); addLabelsFromInput();
-                }
-            });
-            document.addEventListener('click', (e) => { 
-                if (labelsWrapper && !labelsWrapper.contains(e.target)) {
-                    labelsSuggestions.classList.add('hidden'); 
-                }
-            });
-            
-            postTitleInput.addEventListener('input', () => {
-                postTitleInput.style.height = 'auto';
-                postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
-            });
-
-            postListContainer.addEventListener('click', (e) => {
-                const deleteButton = e.target.closest('.delete-post-button');
-                if (deleteButton) {
-                    confirmPostDeletion(deleteButton.dataset.postId, deleteButton.dataset.postTitle);
-                    return;
-                }
-                const editWrapper = e.target.closest('.edit-post-wrapper');
-                if (editWrapper) loadPostForEditing(editWrapper.dataset.postId);
-            });
-            
-            document.getElementById('confirm-delete-button').addEventListener('click', executeActualDelete);
-            document.getElementById('cancel-delete-button').addEventListener('click', () => {
-                deleteConfirmModal.classList.add('hidden');
-                postToDelete = { id: null, title: null };
-            });
+		document.addEventListener('DOMContentLoaded', () => {
+			// Gán biến
+			authContainer = document.getElementById('auth-container');
+			appContainer = document.getElementById('app-container');
+			postTitleInput = document.getElementById('post-title-input');
+			labelsWrapper = document.getElementById('labels-wrapper');
+			labelsPillsContainer = document.getElementById('labels-pills-container');
+			labelsInput = document.getElementById('labels-input');
+			labelsSuggestions = document.getElementById('labels-suggestions');
+			authMessage = document.getElementById('auth-message');
+			findPostModal = document.getElementById('find-post-modal');
+			closeModalButton = document.getElementById('close-modal-button');
+			postListContainer = document.getElementById('post-list');
+			loadMorePostsButton = document.getElementById('load-more-posts-button');
+			searchPostInput = document.getElementById('search-post-input');
+			deleteConfirmModal = document.getElementById('delete-confirm-modal');
+			duplicatePostsModal = document.getElementById('duplicate-posts-modal');
 			
-			            // ================================================================
-            // DÁN ĐOẠN CODE GÁN SỰ KIỆN MỚI VÀO ĐÂY
-            // ================================================================
-            // *** START: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
-            document.getElementById('find-duplicates-button').addEventListener('click', findDuplicatePosts);
-            document.getElementById('close-duplicates-modal-button').addEventListener('click', () => {
-                duplicatePostsModal.classList.add('hidden');
-            });
-            document.getElementById('delete-selected-duplicates-button').addEventListener('click', deleteSelectedDuplicates);
-            // *** END: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
-        });
+			initializeQuill();
+
+			// ================================================================
+			// *** BẮT ĐẦU SỬA LỖI ***
+			// Hai dòng dưới đây giải quyết lỗi race condition
+			// 1. Báo hiệu rằng DOM và các biến đã sẵn sàng
+			domReady = true;
+			// 2. Thử khởi chạy ứng dụng, phòng trường hợp các script Google đã tải xong trước
+			tryInitApp();
+			// *** KẾT THÚC SỬA LỖI ***
+			// ================================================================
+
+			// Gán sự kiện
+			document.getElementById('login-button').addEventListener('click', () => {
+				document.getElementById('login-button').disabled = true; // Vô hiệu hóa nút ngay khi nhấn
+				tokenClient?.requestAccessToken({});
+			});
+			document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
+			document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
+			document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
+			document.querySelectorAll('.find-post-button').forEach(btn => {
+				btn.addEventListener('click', () => {
+					searchPostInput.value = '';
+					findPostModal.classList.remove('hidden'); 
+					fetchPostsForModal(); 
+				});
+			});
+			
+			closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
+			loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
+			searchPostInput.addEventListener('input', filterPostsInModal);
+			
+			labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
+			labelsInput.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ',') {
+					e.preventDefault(); addLabelsFromInput();
+				}
+			});
+			document.addEventListener('click', (e) => { 
+				if (labelsWrapper && !labelsWrapper.contains(e.target)) {
+					labelsSuggestions.classList.add('hidden'); 
+				}
+			});
+			
+			postTitleInput.addEventListener('input', () => {
+				postTitleInput.style.height = 'auto';
+				postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
+			});
+
+			postListContainer.addEventListener('click', (e) => {
+				const deleteButton = e.target.closest('.delete-post-button');
+				if (deleteButton) {
+					confirmPostDeletion(deleteButton.dataset.postId, deleteButton.dataset.postTitle);
+					return;
+				}
+				const editWrapper = e.target.closest('.edit-post-wrapper');
+				if (editWrapper) loadPostForEditing(editWrapper.dataset.postId);
+			});
+			
+			document.getElementById('confirm-delete-button').addEventListener('click', executeActualDelete);
+			document.getElementById('cancel-delete-button').addEventListener('click', () => {
+				deleteConfirmModal.classList.add('hidden');
+				postToDelete = { id: null, title: null };
+			});
+			
+			// *** START: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
+			document.getElementById('find-duplicates-button').addEventListener('click', findDuplicatePosts);
+			document.getElementById('close-duplicates-modal-button').addEventListener('click', () => {
+				duplicatePostsModal.classList.add('hidden');
+			});
+			document.getElementById('delete-selected-duplicates-button').addEventListener('click', deleteSelectedDuplicates);
+			// *** END: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
+		});
     </script>
     
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
