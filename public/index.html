@@ -35,7 +35,7 @@
             display: flex;
             flex-direction: column;
             min-height: 0; /* Rất quan trọng cho Flexbox */
-            padding-bottom: 70px; /* Không gian cho nav mobile */
+            padding-bottom: 85px; /* Không gian cho nav mobile */
         }
 
         @media (min-width: 768px) {
@@ -733,6 +733,7 @@
 			
 			// *** START: SỰ KIỆN CHO CHỨC NĂNG TRÙNG LẶP ***
 			document.getElementById('find-duplicates-button').addEventListener('click', findDuplicatePosts);
+			document.getElementById('find-duplicates-button-mobile').addEventListener('click', findDuplicatePosts);
 			document.getElementById('close-duplicates-modal-button').addEventListener('click', () => {
 				duplicatePostsModal.classList.add('hidden');
 			});
@@ -825,8 +826,10 @@
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4 h-[85vh] md:h-[80vh]">
             <div class="p-4 border-b flex-shrink-0">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold">Quản lý bài viết</h2>
-                    <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
+						<h2 class="text-xl font-bold">Quản lý bài viết</h2>
+						<button id="find-duplicates-button-mobile" class="super-admin-feature hidden ml-4 px-3 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 font-semibold">Tìm trùng lặp</button>
+                    </div>
+					<button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">&times;</button>
                 </div>
                 <input type="text" id="search-post-input" placeholder="Tìm kiếm theo tiêu đề..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             </div>
