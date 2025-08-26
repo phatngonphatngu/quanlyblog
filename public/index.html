@@ -904,53 +904,54 @@
 			</div>
 		</div>
 	</div>
-
-
-<script>
-        // === PWA Installation Logic ===
-        window.addEventListener('load', () => {
-            const installPromptEl = document.getElementById('install-prompt');
-            const installButton = document.getElementById('install-button');
-            const closeInstallPromptButton = document.getElementById('close-install-prompt');
-            let deferredPrompt;
-
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js')
-                .then((reg) => console.log('Service worker registered.', reg))
-                .catch((err) => console.error('Service worker registration failed:', err));
-            }
-
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                if (installPromptEl) {
-                    installPromptEl.style.display = 'flex';
-                }
-            });
-
-            if (installButton) {
-                installButton.addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        if (installPromptEl) installPromptEl.style.display = 'none';
-                        deferredPrompt.prompt();
-                        await deferredPrompt.userChoice;
-                        deferredPrompt = null;
-                    }
-                });
-            }
-
-            if (closeInstallPromptButton) {
-                closeInstallPromptButton.addEventListener('click', () => {
-                     if (installPromptEl) {
-                        installPromptEl.style.display = 'none';
-                     }
-                });
-            }
-            
-            setTimeout(() => {
-                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-                if (!isStandalone && deferredPrompt) {
-                    if (installPromptEl) installPromptEl.style.display = 'flex';
-                }
-            }, 3000);
-        });</script></body></html>
+	<script>
+	        // === PWA Installation Logic ===
+	        window.addEventListener('load', () => {
+	            const installPromptEl = document.getElementById('install-prompt');
+	            const installButton = document.getElementById('install-button');
+	            const closeInstallPromptButton = document.getElementById('close-install-prompt');
+	            let deferredPrompt;
+	
+	            if ('serviceWorker' in navigator) {
+	                navigator.serviceWorker.register('sw.js')
+	                .then((reg) => console.log('Service worker registered.', reg))
+	                .catch((err) => console.error('Service worker registration failed:', err));
+	            }
+	
+	            window.addEventListener('beforeinstallprompt', (e) => {
+	                e.preventDefault();
+	                deferredPrompt = e;
+	                if (installPromptEl) {
+	                    installPromptEl.style.display = 'flex';
+	                }
+	            });
+	
+	            if (installButton) {
+	                installButton.addEventListener('click', async () => {
+	                    if (deferredPrompt) {
+	                        if (installPromptEl) installPromptEl.style.display = 'none';
+	                        deferredPrompt.prompt();
+	                        await deferredPrompt.userChoice;
+	                        deferredPrompt = null;
+	                    }
+	                });
+	            }
+	
+	            if (closeInstallPromptButton) {
+	                closeInstallPromptButton.addEventListener('click', () => {
+	                     if (installPromptEl) {
+	                        installPromptEl.style.display = 'none';
+	                     }
+	                });
+	            }
+	            
+	            setTimeout(() => {
+	                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+	                if (!isStandalone && deferredPrompt) {
+	                    if (installPromptEl) installPromptEl.style.display = 'flex';
+	                }
+	            }, 3000);
+	        });
+	</script>
+</body>
+</html>
