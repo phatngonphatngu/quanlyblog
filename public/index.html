@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ĐĂNG BÀI KHAI THỊ</title>
-    <!-- PWA & SEO Tags -->
+
     <meta name="description" content="Ứng dụng đăng bài và quản lý nội dung cho Blogger.">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -118,32 +118,33 @@
             toast.dataset.timeoutId = timeoutId.toString();
         }
 
-		function handleMobileLayout() {
-			const appContainer = document.getElementById('app-container');
-			const mainContent = appContainer.querySelector('main');
-			const mobileNavBar = document.getElementById('mobile-nav-bar');
+        // Hàm điều chỉnh bố cục cho di động (phiên bản an toàn)
+        function handleMobileLayout() {
+            const appContainer = document.getElementById('app-container');
+            const mainContent = appContainer.querySelector('main');
+            const mobileNavBar = document.getElementById('mobile-nav-bar');
 
-			// Chỉ thực thi trên màn hình di động
-			if (window.innerWidth < 768) {
-				if (window.visualViewport) {
-					appContainer.style.height = `${window.visualViewport.height}px`;
-				} else {
-					appContainer.style.height = '100vh';
-				}
-				
-				// *** THAY ĐỔI QUAN TRỌNG NẰM Ở ĐÂY ***
-				// Chỉ tính toán và đặt padding nếu thanh menu thực sự tồn tại
-				if (mobileNavBar) {
-					const navHeight = mobileNavBar.offsetHeight;
-					mainContent.style.paddingBottom = `${navHeight}px`;
-				}
+												  
+            if (window.innerWidth < 768) {
+                if (window.visualViewport) {
+                    appContainer.style.height = `${window.visualViewport.height}px`;
+                } else {
+                    appContainer.style.height = '100vh';
+                }
+                
+													   
+																					
+                if (mobileNavBar) {
+                    const navHeight = mobileNavBar.offsetHeight;
+                    mainContent.style.paddingBottom = `${navHeight}px`;
+                }
 
-			} else {
-				// Reset về trạng thái cho desktop
-				appContainer.style.height = '100vh';
-				mainContent.style.paddingBottom = '0px';
-			}
-		}
+            } else {
+										   
+                appContainer.style.height = '100vh';
+                mainContent.style.paddingBottom = '0px';
+            }
+        }
         // *** KẾT THÚC THAY ĐỔI LỚN ***
         
         // *** LUỒNG XÁC THỰC (Không thay đổi) ***
@@ -712,7 +713,6 @@
         <!-- Header cho Desktop -->
         <header class="flex-shrink-0 hidden md:flex items-center justify-between p-4 bg-white border-b">
             <div class="flex items-center gap-4">
-                <h1 class="text-xl font-bold">Trình Soạn Thảo</h1>
                 <button class="new-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Bài viết mới</button>
                 <button class="find-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Tìm bài viết</button>
 				<button id="find-duplicates-button" class="super-admin-feature hidden px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">Tìm bài trùng lặp</button>
