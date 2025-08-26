@@ -118,33 +118,32 @@
             toast.dataset.timeoutId = timeoutId.toString();
         }
 
-        // *** BẮT ĐẦU THAY ĐỔI LỚN: HÀM ĐIỀU CHỈNH BỐ CỤC CHO DI ĐỘNG ***
-        function handleMobileLayout() {
-            const appContainer = document.getElementById('app-container');
-            const mainContent = appContainer.querySelector('main');
-            const mobileNavBar = document.getElementById('mobile-nav-bar');
+		function handleMobileLayout() {
+			const appContainer = document.getElementById('app-container');
+			const mainContent = appContainer.querySelector('main');
+			const mobileNavBar = document.getElementById('mobile-nav-bar');
 
-            // Chỉ thực thi trên màn hình di động
-            if (window.innerWidth < 768) {
-                // Sử dụng visualViewport để lấy chiều cao thực tế có thể nhìn thấy,
-                // API này xử lý tốt khi bàn phím ảo xuất hiện.
-                if (window.visualViewport) {
-                    appContainer.style.height = `${window.visualViewport.height}px`;
-                } else {
-                    // Fallback cho trình duyệt cũ hơn
-                    appContainer.style.height = '100vh';
-                }
-                
-                // Đặt padding cho main content để nội dung không bị thanh menu dưới che khuất
-                const navHeight = mobileNavBar.offsetHeight;
-                mainContent.style.paddingBottom = `${navHeight}px`;
+			// Chỉ thực thi trên màn hình di động
+			if (window.innerWidth < 768) {
+				if (window.visualViewport) {
+					appContainer.style.height = `${window.visualViewport.height}px`;
+				} else {
+					appContainer.style.height = '100vh';
+				}
+				
+				// *** THAY ĐỔI QUAN TRỌNG NẰM Ở ĐÂY ***
+				// Chỉ tính toán và đặt padding nếu thanh menu thực sự tồn tại
+				if (mobileNavBar) {
+					const navHeight = mobileNavBar.offsetHeight;
+					mainContent.style.paddingBottom = `${navHeight}px`;
+				}
 
-            } else {
-                // Reset về trạng thái cho desktop
-                appContainer.style.height = '100vh';
-                mainContent.style.paddingBottom = '0px';
-            }
-        }
+			} else {
+				// Reset về trạng thái cho desktop
+				appContainer.style.height = '100vh';
+				mainContent.style.paddingBottom = '0px';
+			}
+		}
         // *** KẾT THÚC THAY ĐỔI LỚN ***
         
         // *** LUỒNG XÁC THỰC (Không thay đổi) ***
@@ -698,7 +697,7 @@
     <!-- Màn hình đăng nhập -->
     <div id="auth-container" class="min-h-screen flex items-center justify-center p-4 pb-32">
 		<div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
-			<img src="logo.png" alt="Logo" class="mx-auto h-32 w-32 mb-4 object-contain" onerror="this.style.display='none'">
+			<img src="logo.png" alt="Logo" class="mx-auto h-48 w-48 mb-4 object-contain" onerror="this.style.display='none'">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">ĐĂNG BÀI KHAI THỊ</h1>
             <div id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</div>
             <button id="login-button" class="w-full px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled>
