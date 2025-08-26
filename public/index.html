@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="vi"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ĐĂNG BÀI KHAI THỊ</title>
+
+    <meta name="description" content="Ứng dụng đăng bài và quản lý nội dung cho Blogger.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; 
+        }
+
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Chiều cao mặc định, JS sẽ điều chỉnh */
+			transform: translateZ(0); 
+        }
+        
+        main {
+            flex-grow: 1; 
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            /* XÓA PADDING-BOTTOM: JavaScript sẽ xử lý việc này để đảm bảo chính xác */
+        }
+
+        @media (min-width: 768px) {
+            main {
+                 padding-bottom: 0;
+            }
+        }
+
+        #editor-wrapper {
+            flex-grow: 1;
+            min-height: 0;
+            overflow-y: hidden;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .ql-container.ql-snow {
+            flex-grow: 1;
+            font-size: 18px; 
+            line-height: 1.7;
+            border: none !important;
+            overflow-y: auto;
+        }
+
+        .ql-toolbar.ql-snow {
+            flex-shrink: 0;
+            border: none !important;
+            border-bottom: 1px solid #e5e7eb !important;
+            background: #f9fafb;
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
+        }
+
+        #mobile-nav-bar {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+
+    <script type="text/javascript">
+        // *** CẤU HÌNH ***
+        const ALLOWED_EMAILS = [
+            'phatngonphatngu@gmail.com', 'Khanhlinhahaha@gmail.com', 'phamduongnhung@gmail.com',
+            'pmtl.protect@gmail.com', 'phamanhtuan9368@gmail.com', 'phamtung936@gmail.com',
+            'thuuyen490@gmail.com', 'vantb0123456@gmail.com', 'vuluyenc67@gmail.com',
+            'tuyen51189@gmail.com', 'kiwi31072023@gmail.com',
+        ];
+		const SUPER_ADMIN_EMAIL = 'phatngonphatngu@gmail.com';
+        const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
+
+        // Biến toàn cục
+        let tokenClient, quill, selectedBlogId = null, allAvailableLabels = [], editingPostId = null, postListPageToken = null;
+        let selectedLabels = new Set();
+        let gapiReady = false, gisReady = false, domReady = false;
+        let postToDelete = { id: null, title: null }; 
+
+        // Biến DOM Elements
+		let authContainer, appContainer, postTitleInput, labelsWrapper, labelsPillsContainer, 
+			labelsInput, labelsSuggestions, authMessage, findPostModal, closeModalButton, 
+			postListContainer, loadMorePostsButton, searchPostInput, deleteConfirmModal,
+			duplicatePostsModal;
+
+        // Hàm tiện ích cho thông báo nổi
+        function setStatus(message, type = 'info', duration = 4000) {
+            const toast = document.getElementById('floating-toast');
+            const toastContent = document.getElementById('toast-content');
+            if (!toast || !toastContent) return;
+            if (toast.dataset.timeoutId) clearTimeout(parseInt(toast.dataset.timeoutId));
+
+            toastContent.innerHTML = message;
+            toastContent.className = 'p-4 rounded-lg shadow-lg text-white font-medium text-center';
+            switch (type) {
+                case 'success': toastContent.classList.add('bg-green-500'); break;
+                case 'error': toastContent.classList.add('bg-red-500'); break;
+                case 'info': default: toastContent.classList.add('bg-blue-500'); break;
+            }
+
+            toast.style.transform = 'translate(-50%, 20px)';
+            toast.style.opacity = '1';
+
+            const timeoutId = setTimeout(() => {
+                toast.style.transform = 'translate(-50%, -120%)';
+                toast.style.opacity = '0';
+            }, duration);
+            
+            toast.dataset.timeoutId = timeoutId.toString();
+        }
+
+        // Hàm điều chỉnh bố cục cho di động (phiên bản an toàn)
+        function handleMobileLayout() {
+            const appContainer = document.getElementById('app-container');
+            const mainContent = appContainer.querySelector('main');
+            const mobileNavBar = document.getElementById('mobile-nav-bar');
+
+												  
+            if (window.innerWidth < 768) {
+                if (window.visualViewport) {
+                    appContainer.style.height = `${window.visualViewport.height}px`;
+                } else {
+                    appContainer.style.height = '100vh';
+                }
+                
+													   
+																					
+                if (mobileNavBar) {
+                    const navHeight = mobileNavBar.offsetHeight;
+                    mainContent.style.paddingBottom = `${navHeight}px`;
+                }
+
+            } else {
+										   
+                appContainer.style.height = '100vh';
+                mainContent.style.paddingBottom = '0px';
+            }
+        }
+        // *** KẾT THÚC THAY ĐỔI LỚN ***
+        
+        // *** LUỒNG XÁC THỰC (Không thay đổi) ***
+        function gapiLoaded() { gapi.load('client', () => { gapiReady = true; tryInitApp(); }); }
+        function gisLoaded() { gisReady = true; tryInitApp(); }
+		function tryInitApp() {
+			if (gapiReady && gisReady && domReady) {
+				initializeApp();
+			}
+		}
+		async function initializeApp() {
+			try {
+				authMessage.textContent = 'Đang tải cấu hình...';
+				const response = await fetch('/api/config');
+				if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
+				const config = await response.json();
+				if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
+				await gapi.client.load('oauth2', 'v2');
+				const savedToken = localStorage.getItem('google_auth_token');
+				const savedExpiration = localStorage.getItem('google_auth_token_expiration');
+				if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
+					authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
+					gapi.client.setToken({ access_token: savedToken });
+					fetchUserInfoAndBlogs();
+					return;
+				}
+				localStorage.clear();
+				tokenClient = google.accounts.oauth2.initTokenClient({
+					client_id: config.clientId,
+					scope: SCOPES,
+					callback: (tokenResponse) => {
+						if (tokenResponse && tokenResponse.access_token) {
+							const expiresIn = (tokenResponse.expires_in || 3600) - 60;
+							const expirationTime = Date.now() + expiresIn * 1000;
+							localStorage.setItem('google_auth_token', tokenResponse.access_token);
+							localStorage.setItem('google_auth_token_expiration', expirationTime);
+							gapi.client.setToken(tokenResponse);
+							fetchUserInfoAndBlogs();
+						}
+					},
+					error_callback: (error) => {
+						console.error("Lỗi xác thực Google:", error); 
+						setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
+						document.getElementById('login-button').disabled = false;
+					},
+				});
+				authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+				document.getElementById('login-button').disabled = false;
+			} catch (error) {
+				console.error("LỖI KHỞI TẠO:", error);
+				authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
+				document.getElementById('login-button').disabled = true;
+			}
+		}
+		async function fetchUserInfoAndBlogs() {
+			try {
+				setStatus('Đang xác thực và tải dữ liệu...', 'info');
+				const profileResponse = await gapi.client.oauth2.userinfo.get();
+				const userEmail = profileResponse.result.email;
+				const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+				if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
+					setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
+					setTimeout(handleLogout, 4000); 
+					return;
+				}
+				if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+					document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
+				}
+				const token = gapi.client.getToken();
+				const backendResponse = await fetch('/api/blogs', {
+					method: 'POST', headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accessToken: token.access_token })
+				});
+				if (backendResponse.status === 401) {
+					setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+					handleLogout();
+					return;
+				}
+				const blogData = await backendResponse.json();
+				if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
+				const blogs = blogData.items;
+				if (blogs && blogs.length > 0) {
+					selectedBlogId = blogs[0].id;
+					updateUI(true); 
+					setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn...', 'info');
+					fetchAndStoreLabels(selectedBlogId); 
+				} else {
+					setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
+					handleLogout();
+				}
+			} catch (err) {
+				setStatus(`Lỗi khi tải dữ liệu: ${err.message}`, 'error');
+				handleLogout();
+			}
+		}
+        function updateUI(isLoggedIn) {
+            authContainer.classList.toggle('hidden', isLoggedIn);
+            appContainer.classList.toggle('hidden', !isLoggedIn);
+        }
+        function handleLogout() {
+            localStorage.clear();
+            const token = gapi.client.getToken();
+            if (token) google.accounts.oauth2.revoke(token.access_token, () => location.reload());
+            else location.reload();
+        }
+        function updateUIForNewPost() {
+            editingPostId = null;
+            postTitleInput.value = '';
+            if(quill) quill.setText('');
+            selectedLabels.clear();
+            renderSelectedLabels();
+            postTitleInput.focus();
+        }
+        async function fetchAndStoreLabels(blogId) {
+            const token = gapi.client.getToken();
+            if (!token) return;
+            try {
+                const response = await fetch('/api/labels', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: blogId })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Lỗi không xác định.');
+                allAvailableLabels = data.labels || [];
+                setStatus('Sẵn sàng để tạo bài viết mới.', 'success');
+            } catch (err) {
+                setStatus(`Lỗi khi tải nhãn: ${err.message}`, 'error');
+            }
+        }
+        function renderSelectedLabels() {
+            labelsPillsContainer.innerHTML = '';
+            selectedLabels.forEach(label => {
+                const pill = document.createElement('span');
+                pill.className = 'flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full';
+                pill.textContent = label;
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'bg-blue-200 hover:bg-blue-300 rounded-full w-4 h-4 flex items-center justify-center text-blue-900 focus:outline-none';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.onclick = () => { selectedLabels.delete(label); renderSelectedLabels(); };
+                pill.appendChild(removeBtn);
+                labelsPillsContainer.appendChild(pill);
+            });
+        }
+        function showLabelSuggestions(query) {
+            labelsSuggestions.innerHTML = '';
+            if (!query) { labelsSuggestions.classList.add('hidden'); return; }
+            const filtered = allAvailableLabels.filter(l => l.toLowerCase().includes(query.toLowerCase()) && !selectedLabels.has(l));
+            if (filtered.length > 0) {
+                filtered.forEach(label => {
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2 cursor-pointer hover:bg-gray-100';
+                    item.textContent = label;
+                    item.onclick = () => addLabelsFromInput(label);
+                    labelsSuggestions.appendChild(item);
+                });
+                labelsSuggestions.classList.remove('hidden');
+            } else {
+                labelsSuggestions.classList.add('hidden');
+            }
+        }
+        function addLabelsFromInput(initialLabel = '') {
+            const inputValue = initialLabel || labelsInput.value;
+            const newLabels = inputValue.split(',').map(label => label.trim()).filter(label => label.length > 0);
+            let labelAdded = false;
+            newLabels.forEach(label => {
+                if (!selectedLabels.has(label)) {
+                    selectedLabels.add(label);
+                    if (!allAvailableLabels.includes(label)) allAvailableLabels.push(label);
+                    labelAdded = true;
+                }
+            });
+            if (labelAdded) renderSelectedLabels();
+            labelsInput.value = '';
+            labelsSuggestions.classList.add('hidden');
+        }
+        async function fetchPostsForModal(isLoadMore = false) {
+            if (!isLoadMore) { postListPageToken = null; postListContainer.innerHTML = ''; }
+            loadMorePostsButton.disabled = true; loadMorePostsButton.textContent = 'Đang tải...';
+            const token = gapi.client.getToken();
+            try {
+                const response = await fetch('/api/posts', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, pageToken: postListPageToken })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error?.message);
+                data.items?.forEach(post => {
+                    const postEl = document.createElement('div');
+                    postEl.id = `post-item-${post.id}`;
+                    postEl.className = 'post-item p-3 border-b hover:bg-gray-50';
+                    const container = document.createElement('div');
+                    container.className = 'flex items-center justify-between w-full gap-4';
+                    const editWrapper = document.createElement('div');
+                    editWrapper.className = 'edit-post-wrapper flex-grow min-w-0 cursor-pointer';
+                    editWrapper.dataset.postId = post.id;
+                    const titleP = document.createElement('p');
+                    titleP.className = 'post-title font-semibold truncate';
+                    titleP.textContent = post.title;
+                    const dateP = document.createElement('p');
+                    dateP.className = 'text-sm text-gray-500';
+                    dateP.textContent = `Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}`;
+                    editWrapper.append(titleP, dateP);
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium';
+                    deleteBtn.textContent = 'Xóa';
+                    deleteBtn.dataset.postId = post.id;
+                    deleteBtn.dataset.postTitle = post.title;
+                    container.append(editWrapper, deleteBtn);
+                    postEl.appendChild(container);
+                    postListContainer.appendChild(postEl);
+                });
+                postListPageToken = data.nextPageToken;
+                loadMorePostsButton.style.display = postListPageToken ? 'block' : 'none';
+                filterPostsInModal();
+            } catch (err) {
+                postListContainer.innerHTML = `<p class="text-red-500 p-4">Lỗi tải bài viết: ${err.message}</p>`;
+            } finally {
+                loadMorePostsButton.disabled = false; loadMorePostsButton.textContent = 'Tải thêm';
+            }
+        }
+        async function loadPostForEditing(postId) {
+            setStatus('Đang tải bài viết để sửa...', 'info');
+            findPostModal.classList.add('hidden');
+            const token = gapi.client.getToken();
+            try {
+                const response = await fetch('/api/post/get', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId })
+                });
+                const post = await response.json();
+                if (!response.ok) throw new Error(post.error?.message);
+                postTitleInput.value = post.title;
+                quill.root.innerHTML = post.content;
+                selectedLabels = new Set(post.labels || []);
+                renderSelectedLabels();
+                editingPostId = post.id;
+                setStatus(`Đang sửa bài viết: "${post.title}"`, 'info');
+            } catch (err) {
+                setStatus(`Lỗi khi tải bài viết: ${err.message}`, 'error');
+            }
+        }
+        function confirmPostDeletion(postId, postTitle) {
+            postToDelete = { id: postId, title: postTitle };
+            document.getElementById('post-to-delete-title').textContent = `"${postTitle}"`;
+            deleteConfirmModal.classList.remove('hidden');
+        }
+		async function executeActualDelete() {
+			if (!postToDelete.id) return;
+			deleteConfirmModal.classList.add('hidden');
+			setStatus('Đang xóa bài viết...', 'info');
+			const token = gapi.client.getToken();
+			if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
+			try {
+				const response = await fetch('/api/post/delete', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postToDelete.id })
+				});
+				if (response.status === 204) {
+					 setStatus('Xóa bài viết thành công!', 'success');
+					 document.getElementById(`post-item-${postToDelete.id}`)?.remove();
+				} else {
+					const errorData = await response.json();
+					throw new Error(errorData.error || `Lỗi từ máy chủ: ${response.status}`);
+				}
+			} catch (err) {
+				console.error("CHI TIẾT LỖI XÓA:", err.message);
+				setStatus(`Lỗi khi xóa bài viết: ${err.message}`, 'error');
+			} finally {
+				postToDelete = { id: null, title: null };
+			}
+		}
+        async function savePost() {
+            const title = postTitleInput.value.trim();
+            const content = quill.root.innerHTML;
+            const token = gapi.client.getToken();
+            if (!selectedBlogId || !title || content === '<p><br></p>') { setStatus('Vui lòng điền đầy đủ tiêu đề và nội dung.', 'error'); return; }
+            if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
+            const isUpdating = !!editingPostId;
+            setStatus(isUpdating ? 'Đang cập nhật...' : 'Đang đăng bài...', 'info');
+            document.querySelectorAll('.save-post-button').forEach(btn => btn.disabled = true);
+            const endpoint = isUpdating ? `/api/post/update` : '/api/post/create';
+            const method = isUpdating ? 'PATCH' : 'POST';
+            const body = { blogId: selectedBlogId, title, content, accessToken: token.access_token, labels: Array.from(selectedLabels) };
+            if (isUpdating) body.postId = editingPostId;
+            try {
+                const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error?.message || JSON.stringify(result));
+                setStatus(`Lưu bài viết thành công! <a href="${result.url}" target="_blank" class="text-white underline">Xem bài viết</a>`, 'success');
+                if (!isUpdating) updateUIForNewPost();
+            } catch (err) {
+                setStatus(`Lỗi khi lưu bài viết: ${err.message}`, 'error');
+            } finally {
+                document.querySelectorAll('.save-post-button').forEach(btn => btn.disabled = false);
+            }
+        }
+		async function findDuplicatePosts() {
+			setStatus('Đang tìm các bài viết trùng lặp...', 'info');
+			const token = gapi.client.getToken();
+			if (!token) { setStatus('Phiên đăng nhập đã hết hạn.', 'error'); return; }
+			try {
+				const response = await fetch('/api/posts/find-duplicates', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId })
+				});
+				const data = await response.json();
+				if (!response.ok) throw new Error(data.error || 'Lỗi không xác định từ server.');
+				const duplicateListContainer = document.getElementById('duplicate-list');
+				duplicateListContainer.innerHTML = '';
+				if (data.duplicates && data.duplicates.length > 0) {
+					data.duplicates.forEach(group => {
+						const groupEl = document.createElement('div');
+						groupEl.className = 'p-4 border rounded-lg';
+						const titleEl = document.createElement('h3');
+						titleEl.className = 'font-bold text-lg mb-2';
+						titleEl.textContent = group.title;
+						groupEl.appendChild(titleEl);
+						const postListEl = document.createElement('div');
+						postListEl.className = 'space-y-2';
+						const originalPost = group.posts[0];
+						const originalPostEl = document.createElement('div');
+						originalPostEl.className = 'flex items-center p-2 rounded-md bg-green-50 text-green-800';
+						originalPostEl.innerHTML = `
+							<svg class="w-5 h-5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+							<span><strong>Giữ lại:</strong> ${originalPost.title} (Đăng lúc: ${new Date(originalPost.published).toLocaleString('vi-VN')})</span>`;
+						postListEl.appendChild(originalPostEl);
+						group.posts.slice(1).forEach(post => {
+							const postEl = document.createElement('label');
+							postEl.className = 'flex items-center p-2 rounded-md hover:bg-red-50 cursor-pointer';
+							postEl.innerHTML = `
+								<input type="checkbox" data-post-id="${post.id}" class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500 mr-3 duplicate-checkbox" checked>
+								<span><strong>Xóa:</strong> ${post.title} (Đăng lúc: ${new Date(post.published).toLocaleString('vi-VN')})</span>
+							`;
+							postListEl.appendChild(postEl);
+						});
+						groupEl.appendChild(postListEl);
+						duplicateListContainer.appendChild(groupEl);
+					});
+					setStatus('Đã tìm thấy các bài viết trùng lặp.', 'success');
+					duplicatePostsModal.classList.remove('hidden');
+				} else {
+					setStatus('Tuyệt vời! Không tìm thấy bài viết nào bị trùng lặp.', 'success');
+				}
+			} catch (err) {
+				setStatus(`Lỗi khi tìm bài trùng lặp: ${err.message}`, 'error');
+			}
+		}
+		function sleep(ms) {
+			return new Promise(resolve => setTimeout(resolve, ms));
+		}
+		async function deleteSelectedDuplicates() {
+			const checkboxes = document.querySelectorAll('.duplicate-checkbox:checked');
+			const postIdsToDelete = Array.from(checkboxes).map(cb => cb.dataset.postId);
+			const totalToDelete = postIdsToDelete.length;
+			if (totalToDelete === 0) {
+				setStatus('Vui lòng chọn ít nhất một bài viết để xóa.', 'error');
+				return;
+			}
+			if (!confirm(`Bạn có chắc muốn xóa ${totalToDelete} bài viết đã chọn không? Quá trình này có thể mất một lúc và không thể hoàn tác.`)) {
+				return;
+			}
+			const token = gapi.client.getToken();
+			let successCount = 0;
+			let errorCount = 0;
+			let lastErrorMessage = '';
+			document.getElementById('delete-selected-duplicates-button').disabled = true;
+			for (let i = 0; i < totalToDelete; i++) {
+				const postId = postIdsToDelete[i];
+				setStatus(`Đang xóa bài ${i + 1} / ${totalToDelete}...`, 'info', 5000);
+				try {
+					const response = await fetch('/api/post/delete', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ accessToken: token.access_token, blogId: selectedBlogId, postId: postId })
+					});
+					if (response.status === 204) {
+						successCount++;
+					} else {
+						const errorData = await response.json();
+						lastErrorMessage = errorData.error || `Lỗi không xác định từ máy chủ: ${response.status}`;
+						console.error(`Lỗi khi xóa post ${postId}:`, lastErrorMessage);
+						errorCount++;
+					}
+				} catch (err) {
+					lastErrorMessage = err.message;
+					console.error(`Lỗi nghiêm trọng khi xóa post ${postId}:`, lastErrorMessage);
+					errorCount++;
+				}
+				if (i < totalToDelete - 1) {
+					await sleep(1500);
+				}
+			}
+			document.getElementById('delete-selected-duplicates-button').disabled = false;
+			let finalMessage = `Hoàn tất! Đã xóa thành công ${successCount} bài viết.`;
+			if (errorCount > 0) {
+				finalMessage += ` Có ${errorCount} lỗi xảy ra. Lỗi cuối cùng: ${lastErrorMessage}`;
+			}
+			setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
+			findDuplicatePosts();
+		}
+        function initializeQuill() {
+             quill = new Quill('#editor', {
+                modules: { toolbar: true }, 
+                placeholder: 'Soạn nội dung của bạn tại đây...',
+                theme: 'snow'
+            });
+        }
+        function filterPostsInModal() {
+            const query = searchPostInput.value.toLowerCase().trim();
+            postListContainer.querySelectorAll('.post-item').forEach(post => {
+                const title = post.querySelector('.post-title').textContent.toLowerCase();
+                post.style.display = title.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+		document.addEventListener('DOMContentLoaded', () => {
+			// Gán biến
+			authContainer = document.getElementById('auth-container');
+			appContainer = document.getElementById('app-container');
+			postTitleInput = document.getElementById('post-title-input');
+			labelsWrapper = document.getElementById('labels-wrapper');
+			labelsPillsContainer = document.getElementById('labels-pills-container');
+			labelsInput = document.getElementById('labels-input');
+			labelsSuggestions = document.getElementById('labels-suggestions');
+			authMessage = document.getElementById('auth-message');
+			findPostModal = document.getElementById('find-post-modal');
+			closeModalButton = document.getElementById('close-modal-button');
+			postListContainer = document.getElementById('post-list');
+			loadMorePostsButton = document.getElementById('load-more-posts-button');
+			searchPostInput = document.getElementById('search-post-input');
+			deleteConfirmModal = document.getElementById('delete-confirm-modal');
+			duplicatePostsModal = document.getElementById('duplicate-posts-modal');
+			
+			initializeQuill();
+			domReady = true;
+			tryInitApp();
+
+			// Gán sự kiện
+			document.getElementById('login-button').addEventListener('click', () => {
+				document.getElementById('login-button').disabled = true;
+				tokenClient?.requestAccessToken({});
+			});
+			document.querySelectorAll('.logout-button').forEach(btn => btn.addEventListener('click', handleLogout));
+			document.querySelectorAll('.save-post-button').forEach(btn => btn.addEventListener('click', savePost));
+			document.querySelectorAll('.new-post-button').forEach(btn => btn.addEventListener('click', updateUIForNewPost));
+			document.querySelectorAll('.find-post-button').forEach(btn => {
+				btn.addEventListener('click', () => {
+					searchPostInput.value = '';
+					findPostModal.classList.remove('hidden'); 
+					fetchPostsForModal(); 
+				});
+			});
+			
+			closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
+			loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
+			searchPostInput.addEventListener('input', filterPostsInModal);
+			
+			let isMouseOverSuggestions = false;
+			labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
+			labelsInput.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.keyCode === 13 || e.key === ',') {
+					e.preventDefault();
+					addLabelsFromInput();
+				}
+			});
+			labelsInput.addEventListener('blur', () => {
+				setTimeout(() => {
+					if (!isMouseOverSuggestions && labelsInput.value.trim().length > 0) {
+						addLabelsFromInput();
+					}
+				}, 150);
+			});
+			labelsSuggestions.addEventListener('mouseenter', () => { isMouseOverSuggestions = true; });
+			labelsSuggestions.addEventListener('mouseleave', () => { isMouseOverSuggestions = false; });
+			document.addEventListener('click', (e) => { 
+				if (labelsWrapper && !labelsWrapper.contains(e.target)) {
+					labelsSuggestions.classList.add('hidden'); 
+				}
+			});
+			
+			postTitleInput.addEventListener('input', () => {
+				postTitleInput.style.height = 'auto';
+				postTitleInput.style.height = (postTitleInput.scrollHeight) + 'px';
+			});
+
+			postListContainer.addEventListener('click', (e) => {
+				const deleteButton = e.target.closest('.delete-post-button');
+				if (deleteButton) {
+					confirmPostDeletion(deleteButton.dataset.postId, deleteButton.dataset.postTitle);
+					return;
+				}
+				const editWrapper = e.target.closest('.edit-post-wrapper');
+				if (editWrapper) loadPostForEditing(editWrapper.dataset.postId);
+			});
+			
+			document.getElementById('confirm-delete-button').addEventListener('click', executeActualDelete);
+			document.getElementById('cancel-delete-button').addEventListener('click', () => {
+				deleteConfirmModal.classList.add('hidden');
+				postToDelete = { id: null, title: null };
+			});
+			
+			document.getElementById('find-duplicates-button').addEventListener('click', findDuplicatePosts);
+			document.getElementById('close-duplicates-modal-button').addEventListener('click', () => {
+				duplicatePostsModal.classList.add('hidden');
+			});
+			document.getElementById('delete-selected-duplicates-button').addEventListener('click', deleteSelectedDuplicates);
+
+            const moreMenuButton = document.getElementById('more-menu-button');
+            const moreMenuPopup = document.getElementById('more-menu-popup');
+            const findDuplicatesMobileButton = document.getElementById('find-duplicates-button-mobile');
+
+            moreMenuButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moreMenuPopup.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (!moreMenuPopup.classList.contains('hidden') && !moreMenuPopup.contains(e.target) && !moreMenuButton.contains(e.target)) {
+                    moreMenuPopup.classList.add('hidden');
+                }
+            });
+            findDuplicatesMobileButton.addEventListener('click', () => {
+                findDuplicatePosts();
+                moreMenuPopup.classList.add('hidden');
+            });
+
+            // *** BẮT ĐẦU THAY ĐỔI LỚN: GỌI HÀM VÀ GÁN SỰ KIỆN ĐIỀU CHỈNH BỐ CỤC ***
+            handleMobileLayout(); // Gọi lần đầu khi tải trang
+            // Lắng nghe sự kiện thay đổi kích thước của visualViewport (quan trọng cho bàn phím ảo)
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', handleMobileLayout);
+            } else {
+                // Fallback cho trình duyệt cũ hơn, lắng nghe sự kiện resize của window
+                window.addEventListener('resize', handleMobileLayout);
+            }
+            // *** KẾT THÚC THAY ĐỔI LỚN ***
+		});
+    </script>
+    
+    <script async="" defer="" src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async="" defer="" src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <link href="output.css" rel="stylesheet">
+
+    <!-- === PWA (Progressive Web App) Support === -->
+    <meta name="theme-color" content="#92400e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="images/icons/icon-192x192.png">
+    <link rel="icon" href="images/icons/icon-32x32.png" type="image/png">
+    <!-- === End PWA Support === --><style>
+        #install-prompt {
+            /* Layout */
+            display: none; /* JS sẽ đổi thành 'flex' để hiển thị */
+            align-items: center;
+            gap: 1rem;
+            
+            /* Position */
+            position: fixed;
+            bottom: 80px;
+            left: 1rem;
+            right: 1rem;
+            z-index: 2000;
+            max-width: 28rem; /* 448px */
+            margin-left: auto;
+            margin-right: auto;
+
+            /* Appearance */
+            background-color: #166534; /* Tương ứng bg-green-800 */
+            color: #ffffff;
+            padding: 0.75rem; /* 12px */
+            border-radius: 0.5rem; /* 8px */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        @media (min-width: 640px) {
+            #install-prompt {
+                left: 50%;
+                transform: translateX(-50%);
+                width: auto;
+            }
+        }
+        #install-prompt .prompt-text {
+            flex-grow: 1;
+            font-size: 0.875rem; /* 14px */
+        }
+        #install-prompt #install-button {
+            background-color: #ffffff;
+            color: #166534; /* Màu chữ xanh đậm */
+            font-weight: 700;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem; /* 6px */
+            border: none;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background-color 0.2s;
+        }
+        #install-prompt #install-button:hover {
+            background-color: #f0fdf4; /* Màu nền xanh lá rất nhạt khi hover */
+        }
+        #install-prompt #close-install-prompt {
+            background: none;
+            border: none;
+            color: #ffffff;
+            opacity: 0.7;
+            cursor: pointer;
+            flex-shrink: 0;
+            padding: 0.25rem;
+            transition: opacity 0.2s;
+        }
+        #install-prompt #close-install-prompt:hover {
+            opacity: 1;
+        }</style></head>
+<body class="bg-gray-100">
+    <!-- PWA Install Prompt -->
+    <div id="install-prompt">
+        <div class="prompt-text">
+            Cài đặt ứng dụng để sử dụng thuận tiện hơn!
+        </div>
+        <button id="install-button">Cài đặt</button>
+        <button id="close-install-prompt">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+    </div>
+
+    <!-- Thông báo nổi -->
+    <div id="floating-toast" class="fixed top-0 left-1/2 w-full max-w-md p-4 z-[200] transition-all duration-300 ease-in-out opacity-0" style="transform: translate(-50%, -120%);">
+        <div id="toast-content"></div>
+    </div>
+
+    <!-- Màn hình đăng nhập -->
+    <div id="auth-container" class="min-h-screen flex items-center justify-center p-4 pb-32">
+		<div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
+			<img src="logo.png" alt="Logo" class="mx-auto h-48 w-48 mb-4 object-contain" onerror="this.style.display='none'">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">ĐĂNG BÀI KHAI THỊ</h1>
+            <div id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</div>
+            <button id="login-button" class="w-full px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled="">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
+                Đăng nhập với Google
+            </button>
+        </div>
+    </div>
+
+    <!-- Giao diện ứng dụng chính -->
+    <div id="app-container" class="hidden">
+        <!-- Header cho Desktop -->
+        <header class="flex-shrink-0 hidden md:flex items-center justify-between p-4 bg-white border-b">
+            <div class="flex items-center gap-4">
+                <button class="new-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Bài viết mới</button>
+                <button class="find-post-button px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Tìm bài viết</button>
+				<button id="find-duplicates-button" class="super-admin-feature hidden px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">Tìm bài trùng lặp</button>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="logout-button text-sm text-gray-600 hover:text-red-600">Đăng xuất</button>
+                <button id="save-post-button" class="save-post-button px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 shadow-md flex-shrink-0">
+                    🚀 Đăng bài
+                </button>
+            </div>
+        </header>
+        <!-- Vùng làm việc chính -->
+        <main class="p-4 bg-white md:bg-gray-100">
+            <!-- Phần không cuộn -->
+            <div class="flex-shrink-0">
+                <textarea id="post-title-input" class="w-full text-xl md:text-1xl font-bold border-none focus:ring-0 p-2 mb-3 bg-transparent resize-none overflow-hidden" placeholder="Nhập tiêu đề..." rows="1"></textarea>
+                <div id="labels-wrapper" class="relative mb-4">
+                    <div class="flex flex-wrap items-center gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                        <div id="labels-pills-container" class="flex flex-wrap items-center gap-2"></div>
+                        <input id="labels-input" type="text" placeholder="Thêm nhãn (Enter hoặc dấu phẩy để thêm)..." class="flex-grow border-none focus:ring-0 p-1 bg-transparent text-sm">
+                    </div>
+                    <div id="labels-suggestions" class="absolute w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto shadow-lg hidden z-50"></div>
+                </div>
+            </div>
+            <!-- Phần sẽ cuộn -->
+            <div id="editor-wrapper">
+                 <div id="editor"></div>
+            </div>
+        </main>
+        <!-- Thanh điều hướng cho Mobile -->
+		<div id="mobile-nav-bar" class="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 flex items-center justify-around py-1.5 px-1 z-40 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
+			<button id="mobile-save-post-button" class="save-post-button flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/4">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+				</svg>
+				Đăng Bài
+			</button>
+			<button class="new-post-button flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/5">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+				Bài mới
+			</button>
+			<button class="find-post-button flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/5">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+				Tìm bài
+			</button>
+			<button id="more-menu-button" class="flex flex-col items-center text-gray-600 hover:text-blue-600 text-xs p-1 w-1/5">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+				</svg>
+				Thêm
+			</button>
+		</div>
+    </div>
+	<!-- Menu "Thêm" cho mobile -->
+	<div id="more-menu-popup" class="hidden fixed bottom-[75px] right-2 bg-white rounded-lg shadow-xl border z-50 w-56">
+		<button id="find-duplicates-button-mobile" class="super-admin-feature hidden w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+			Tìm bài trùng lặp
+		</button>
+		<button class="logout-button w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+			 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+			Đăng xuất
+		</button>
+	</div>
+    <!-- Modal tìm bài viết -->
+    <div id="find-post-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col m-4 h-[85vh] md:h-[80vh]">
+            <div class="p-4 border-b flex-shrink-0">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Quản lý bài viết</h2>
+                    <button id="close-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">×</button>
+                </div>
+                <input type="text" id="search-post-input" placeholder="Tìm kiếm theo tiêu đề..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div id="post-list" class="flex-grow overflow-y-auto p-2"></div>
+            <div id="modal-footer" class="p-4 border-t flex-shrink-0 text-center">
+                <button id="load-more-posts-button" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Tải thêm</button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal xác nhận xóa -->
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[150] p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+            <svg class="mx-auto mb-4 text-gray-400 w-12 h-12" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path>
+            </svg>
+            <h3 class="mb-2 text-lg font-normal text-gray-600">Bạn có chắc chắn muốn xóa bài viết này không?</h3>
+            <p id="post-to-delete-title" class="mb-5 font-bold text-gray-800 break-words"></p>
+            <button id="confirm-delete-button" class="text-white bg-red-600 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm inline-flex items-center px-5 py-2.5 text-center mr-2">
+                Vâng, tôi chắc chắn
+            </button>
+            <button id="cancel-delete-button" class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10">
+                Không, hủy bỏ
+            </button>
+        </div>
+    </div>
+	<div id="duplicate-posts-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-[100] p-4">
+		<div class="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col m-4 h-[90vh]">
+			<div class="p-4 border-b flex-shrink-0">
+				<div class="flex justify-between items-center">
+					<h2 class="text-xl font-bold">Các bài viết bị trùng lặp</h2>
+					<button id="close-duplicates-modal-button" class="text-gray-500 hover:text-gray-800 text-2xl font-bold leading-none">×</button>
+				</div>
+				 <p class="text-sm text-gray-500 mt-1">Hệ thống sẽ tự động giữ lại bài viết được đăng gần đây nhất và đề xuất xóa các bài cũ hơn.</p>
+			</div>
+			<div id="duplicate-list" class="flex-grow overflow-y-auto p-4 space-y-4">
+				</div>
+			<div class="p-4 border-t flex-shrink-0 text-right space-x-2">
+				<button id="delete-selected-duplicates-button" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
+					Xóa các mục đã chọn
+				</button>
+			</div>
+		</div>
+	</div>
+
+
+<script>
+        // === PWA Installation Logic ===
+        window.addEventListener('load', () => {
+            const installPromptEl = document.getElementById('install-prompt');
+            const installButton = document.getElementById('install-button');
+            const closeInstallPromptButton = document.getElementById('close-install-prompt');
+            let deferredPrompt;
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                .then((reg) => console.log('Service worker registered.', reg))
+                .catch((err) => console.error('Service worker registration failed:', err));
+            }
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                if (installPromptEl) {
+                    installPromptEl.style.display = 'flex';
+                }
+            });
+
+            if (installButton) {
+                installButton.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        if (installPromptEl) installPromptEl.style.display = 'none';
+                        deferredPrompt.prompt();
+                        await deferredPrompt.userChoice;
+                        deferredPrompt = null;
+                    }
+                });
+            }
+
+            if (closeInstallPromptButton) {
+                closeInstallPromptButton.addEventListener('click', () => {
+                     if (installPromptEl) {
+                        installPromptEl.style.display = 'none';
+                     }
+                });
+            }
+            
+            setTimeout(() => {
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+                if (!isStandalone && deferredPrompt) {
+                    if (installPromptEl) installPromptEl.style.display = 'flex';
+                }
+            }, 3000);
+        });</script></body></html>
