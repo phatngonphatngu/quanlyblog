@@ -593,11 +593,45 @@
 			setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
 			findDuplicatePosts();
 		}
+		// THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM MỚI NÀY
         function initializeQuill() {
-             quill = new Quill('#editor', {
-                modules: { toolbar: true }, 
+            quill = new Quill('#editor', {
+                modules: {
+                    toolbar: {
+                        container: '#toolbar-container', // Chỉ định thanh công cụ tùy chỉnh
+                        handlers: {
+                            // Đây là nơi chúng ta sẽ xử lý các nút mới trong tương lai nếu cần
+                        }
+                    }
+                },
                 placeholder: 'Soạn nội dung của bạn tại đây...',
                 theme: 'snow'
+            });
+
+            // Gán sự kiện cho nút Dán (Paste)
+            document.getElementById('custom-paste-button').addEventListener('click', async () => {
+                try {
+                    // Sử dụng API Clipboard của trình duyệt để đọc văn bản
+                    const text = await navigator.clipboard.readText();
+                    if (text) {
+                        // Chèn văn bản vào vị trí con trỏ hiện tại
+                        const range = quill.getSelection(true);
+                        quill.insertText(range.index, text);
+                    } else {
+                        setStatus('Không có nội dung văn bản trong clipboard.', 'info');
+                    }
+                } catch (err) {
+                    console.error('Lỗi khi dán:', err);
+                    setStatus('Không thể dán nội dung. Trình duyệt của bạn có thể không hỗ trợ hoặc chưa cấp quyền.', 'error');
+                }
+            });
+
+            // Gán sự kiện cho nút Xóa (Clear)
+            document.getElementById('custom-clear-button').addEventListener('click', () => {
+                if (confirm('Bạn có chắc chắn muốn xóa toàn bộ nội dung không?')) {
+                    // Xóa sạch nội dung trong trình soạn thảo
+                    quill.setText('');
+                }
             });
         }
         
@@ -862,7 +896,37 @@
             </div>
             <!-- Phần sẽ cuộn -->
             <div id="editor-wrapper">
-                 <div id="editor"></div>
+				<div id="toolbar-container">
+					<span class="ql-formats">
+						<button class="ql-bold"></button>
+						<button class="ql-italic"></button>
+						<button class="ql-underline"></button>
+						<button class="ql-strike"></button>
+					</span>
+					<span class="ql-formats">
+						<button class="ql-link"></button>
+						<button class="ql-blockquote"></button>
+						<button class="ql-list" value="ordered"></button>
+						<button class="ql-list" value="bullet"></button>
+					</span>
+					<span class="ql-formats">
+						<select class="ql-header">
+							<option value="1">Tiêu đề 1</option>
+							<option value="2">Tiêu đề 2</option>
+							<option value="3">Tiêu đề 3</option>
+							<option selected>Văn bản thường</option>
+						</select>
+					</span>
+					<span class="ql-formats">
+						<button id="custom-paste-button" title="Dán nội dung từ clipboard">
+							<svg viewbox="0 0 18 18"><polygon class="ql-stroke" points="10 4 10 2 4 2 4 13 6 13 6 15 12 15 12 4"></polygon><rect class="ql-fill" height="1" width="3" x="5" y="4"></rect><rect class="ql-fill" height="1" width="3" x="5" y="6"></rect><rect class="ql-fill" height="1" width="3" x="5" y="8"></rect></svg>
+						</button>
+						<button id="custom-clear-button" title="Xóa toàn bộ nội dung">
+							<svg viewbox="0 0 18 18"><line class="ql-stroke" x1="15" x2="3" y1="3" y2="15"></line><line class="ql-stroke" x1="3" x2="15" y1="3" y2="15"></line></svg>
+						</button>
+					</span>
+					</div>
+				<div id="editor"></div>
             </div>
         </main>
         <!-- Thanh điều hướng cho Mobile -->
