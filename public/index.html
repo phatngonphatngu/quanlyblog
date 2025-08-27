@@ -99,7 +99,12 @@
             'thuuyen490@gmail.com', 'vantb0123456@gmail.com', 'vuluyenc67@gmail.com',
             'tuyen51189@gmail.com', 'kiwi31072023@gmail.com',
         ];
-		const SUPER_ADMIN_EMAIL = 'phatngonphatngu@gmail.com';
+		const SUPER_ADMIN_EMAILS = [
+			'phatngonphatngu@gmail.com',
+			'phamanhtuan9368@gmail.com',
+			'phamduongnhung@gmail.com' 
+			// Thêm các email khác vào đây, mỗi email trên một dòng và có dấu phẩy
+		];
         const SCOPES = 'https://www.googleapis.com/auth/blogger https://www.googleapis.com/auth/userinfo.email';
 
         // Biến toàn cục
@@ -232,7 +237,7 @@
 					setTimeout(handleLogout, 4000); 
 					return;
 				}
-				if (userEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+				if (SUPER_ADMIN_EMAILS.map(email => email.toLowerCase()).includes(userEmail.toLowerCase())) {
 					document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
 				}
 				const token = gapi.client.getToken();
