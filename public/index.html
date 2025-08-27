@@ -70,20 +70,24 @@
         #mobile-nav-bar {
             padding-bottom: env(safe-area-inset-bottom);
         }
-		/* ĐOẠN MÃ MỚI: Đẩy nhóm nút tùy chỉnh sang phải */
-        .ql-toolbar.ql-snow .ql-formats.ql-custom-buttons {
-            margin-left: auto;
-        }
 		
-		/* ĐOẠN MÃ MỚI: Đẩy nhóm nút tùy chỉnh sang phải */
+		/* GIẢI PHÁP HOÀN CHỈNH CHO THANH CÔNG CỤ */
+
+		/* 1. Biến thanh công cụ thành flex container, căn giữa và cho phép xuống dòng */
+		.ql-toolbar.ql-snow {
+			display: flex;
+			align-items: center; /* Căn các mục thẳng hàng theo chiều dọc */
+			flex-wrap: wrap;     /* Cho phép các mục xuống dòng khi không đủ chỗ */
+		}
+
+		/* 2. Đẩy nhóm nút tùy chỉnh sang phải */
 		.ql-toolbar.ql-snow .ql-formats.ql-custom-buttons {
 			margin-left: auto;
 		}
 
-		/* THÊM ĐOẠN NÀY VÀO */
-		.ql-toolbar.ql-snow {
-			display: flex; /* Đảm bảo toolbar là flex container */
-			flex-wrap: wrap; /* Cho phép các nút xuống dòng nếu không đủ chỗ */
+		/* 3. (QUAN TRỌNG) Đặt chiều rộng cố định cho ô "Văn bản thường" để không bị co lại */
+		.ql-toolbar.ql-snow .ql-header {
+			width: 150px; /* Bạn có thể điều chỉnh giá trị này nếu thấy cần thiết */
 		}
     </style>
 
