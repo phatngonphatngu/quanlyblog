@@ -233,6 +233,32 @@ app.post('/api/posts/find-duplicates', async (req, res) => {
 });
 // *** END: TÌM BÀI VIẾT TRÙNG LẶP ***
 
+// *** START: TÌM KIẾM TOÀN BỘ BÀI VIẾT ***
+app.post('/api/posts/search', async (req, res) => {
+    const { accessToken, blogId, query } = req.body;
+    if (!accessToken || !blogId) return res.status(400).json({ error: 'Thiếu Access Token hoặc Blog ID.' });
+    if (!query) return res.status(400).json({ error: 'Thiếu từ khóa tìm kiếm.' });
+    if (!API_KEY) return res.status(500).json({ error: 'API Key không được cấu hình.' });
+
+    // Sử dụng endpoint "search" của Blogger API
+    // encodeURIComponent để đảm bảo các ký tự đặc biệt trong query được xử lý đúng
+    const bloggerSearchUrl = `https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/search?q=${encodeURIComponent(query)}&key=${API_KEY}&fetchBodies=false&fields=items(id,title,updated)&orderBy=updated`;
+
+    try {
+        const response = await fetch(bloggerSearchUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Không thể thực hiện tìm kiếm.');
+        
+        // Trả về danh sách bài viết tìm được (API search không hỗ trợ phân trang nextPageToken)
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// *** END: TÌM KIẾM TOÀN BỘ BÀI VIẾT ***
+
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
 });
