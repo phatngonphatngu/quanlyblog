@@ -66,6 +66,10 @@
         #mobile-nav-bar {
             padding-bottom: env(safe-area-inset-bottom);
         }
+		/* ĐOẠN MÃ MỚI: Đẩy nhóm nút tùy chỉnh sang phải */
+        .ql-toolbar.ql-snow .ql-formats.ql-custom-buttons {
+            margin-left: auto;
+        }
     </style>
 
     <script type="text/javascript">
@@ -914,10 +918,10 @@
 							<option value="1">Tiêu đề 1</option>
 							<option value="2">Tiêu đề 2</option>
 							<option value="3">Tiêu đề 3</option>
-							<option selected>Văn bản thường</option>
+							<option selected>Bình thường</option>
 						</select>
 					</span>
-					<span class="ql-formats">
+					<span class="ql-formats ql-custom-buttons">
 						<button id="custom-paste-button" title="Dán nội dung từ clipboard">
 							<svg viewbox="0 0 18 18"><polygon class="ql-stroke" points="10 4 10 2 4 2 4 13 6 13 6 15 12 15 12 4"></polygon><rect class="ql-fill" height="1" width="3" x="5" y="4"></rect><rect class="ql-fill" height="1" width="3" x="5" y="6"></rect><rect class="ql-fill" height="1" width="3" x="5" y="8"></rect></svg>
 						</button>
