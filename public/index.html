@@ -36,23 +36,36 @@
             }
         }
 
-        #editor-wrapper {
-            flex-grow: 1;
-            min-height: 0;
-            overflow-y: hidden;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.75rem;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .ql-container.ql-snow {
-            flex-grow: 1;
-            font-size: 18px; 
-            line-height: 1.7;
-            border: none !important;
-            overflow-y: auto;
-        }
+		/* BẮT ĐẦU DÁN MÃ CSS MỚI TỪ ĐÂY */
+		#editor-wrapper {
+			flex-grow: 1; /* Cho phép vùng này co giãn để lấp đầy không gian */
+			min-height: 0; /* Quan trọng: Ngăn không cho nó tràn ra ngoài màn hình */
+			display: flex; /* Sử dụng flexbox để quản lý nội dung bên trong */
+			flex-direction: column; /* Sắp xếp trình soạn thảo theo chiều dọc */
+			overflow: hidden; /* Ẩn bất kỳ nội dung nào tràn ra ngoài */
+			border: 1px solid #ccc; /* Thêm đường viền */
+			border-top: none; /* Bỏ đường viền trên vì đã có ở toolbar */
+			border-bottom-left-radius: 8px; /* Bo góc dưới trái */
+			border-bottom-right-radius: 8px; /* Bo góc dưới phải */
+		}
+
+		.ql-container.ql-snow {
+			flex-grow: 1; /* Cho phép trình soạn thảo lấp đầy không gian trong wrapper */
+			overflow-y: auto; /* Thêm thanh cuộn khi nội dung dài */
+			font-size: 18px;
+			line-height: 1.7;
+			border: none !important;
+		}
+
+		.ql-toolbar.ql-snow {
+			border: 1px solid #ccc !important; /* Thêm đường viền cho toolbar */
+			border-bottom: 1px solid #ccc !important; /* Giữ đường viền dưới */
+			border-top-left-radius: 8px; /* Bo góc trên trái */
+			border-top-right-radius: 8px; /* Bo góc trên phải */
+			flex-shrink: 0;
+			background: #f9fafb;
+		}
+		/* KẾT THÚC DÁN MÃ CSS MỚI Ở ĐÂY */
 
         .ql-toolbar.ql-snow {
             flex-shrink: 0;
@@ -899,39 +912,40 @@
                 </div>
             </div>
             <!-- Phần sẽ cuộn -->
-            <div id="editor-wrapper">
-				<div id="toolbar-container" class="ql-toolbar ql-snow">
-					<span class="ql-formats">
-						<button class="ql-bold"></button>
-						<button class="ql-italic"></button>
-						<button class="ql-underline"></button>
-						<button class="ql-strike"></button>
-					</span>
-					<span class="ql-formats">
-						<button class="ql-link"></button>
-						<button class="ql-blockquote"></button>
-						<button class="ql-list" value="ordered"></button>
-						<button class="ql-list" value="bullet"></button>
-					</span>
-					<span class="ql-formats">
-						<select class="ql-header">
-							<option value="1">Tiêu đề 1</option>
-							<option value="2">Tiêu đề 2</option>
-							<option value="3">Tiêu đề 3</option>
-							<option selected>Văn bản thường</option>
-						</select>
-					</span>
-					<span class="ql-formats ql-custom-buttons">
-						<button id="custom-paste-button" title="Dán nội dung từ clipboard">
-							<svg viewbox="0 0 18 18"><polygon class="ql-stroke" points="10 4 10 2 4 2 4 13 6 13 6 15 12 15 12 4"></polygon><rect class="ql-fill" height="1" width="3" x="5" y="4"></rect><rect class="ql-fill" height="1" width="3" x="5" y="6"></rect><rect class="ql-fill" height="1" width="3" x="5" y="8"></rect></svg>
-						</button>
-						<button id="custom-clear-button" title="Xóa toàn bộ nội dung">
-							<svg viewbox="0 0 18 18"><line class="ql-stroke" x1="15" x2="3" y1="3" y2="15"></line><line class="ql-stroke" x1="3" x2="15" y1="3" y2="15"></line></svg>
-						</button>
-					</span>
-					</div>
-				<div id="editor"></div>
-            </div>
+			<div id="toolbar-container" class="ql-toolbar ql-snow flex-shrink-0">
+				<span class="ql-formats">
+					<button class="ql-bold"></button>
+					<button class="ql-italic"></button>
+					<button class="ql-underline"></button>
+					<button class="ql-strike"></button>
+				</span>
+				<span class="ql-formats">
+					<button class="ql-link"></button>
+					<button class="ql-blockquote"></button>
+					<button class="ql-list" value="ordered"></button>
+					<button class="ql-list" value="bullet"></button>
+				</span>
+				<span class="ql-formats">
+					<select class="ql-header">
+						<option value="1">Tiêu đề 1</option>
+						<option value="2">Tiêu đề 2</option>
+						<option value="3">Tiêu đề 3</option>
+						<option selected="">Văn bản thường</option>
+					</select>
+				</span>
+				<span class="ql-formats ql-custom-buttons">
+					<button id="custom-paste-button" title="Dán nội dung từ clipboard">
+						<svg viewbox="0 0 18 18"><polygon class="ql-stroke" points="10 4 10 2 4 2 4 13 6 13 6 15 12 15 12 4"></polygon><rect class="ql-fill" height="1" width="3" x="5" y="4"></rect><rect class="ql-fill" height="1" width="3" x="5" y="6"></rect><rect class="ql-fill" height="1" width="3" x="5" y="8"></rect></svg>
+					</button>
+					<button id="custom-clear-button" title="Xóa toàn bộ nội dung">
+						<svg viewbox="0 0 18 18"><line class="ql-stroke" x1="15" x2="3" y1="3" y2="15"></line><line class="ql-stroke" x1="3" x2="15" y1="3" y2="15"></line></svg>
+					</button>
+				</span>
+			</div>
+
+			<div id="editor-wrapper" class="flex-grow min-h-0 overflow-y-auto border border-gray-300 rounded-b-lg">
+				<div id="editor" class="h-full"></div>
+			</div>
         </main>
         <!-- Thanh điều hướng cho Mobile -->
 		<div id="mobile-nav-bar" class="md:hidden fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-sm border-t border-gray-200 flex items-center justify-around py-1.5 px-1 z-40 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
