@@ -330,34 +330,12 @@
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error?.message);
-                data.items?.forEach(post => {
-                    const postEl = document.createElement('div');
-                    postEl.id = `post-item-${post.id}`;
-                    postEl.className = 'post-item p-3 border-b hover:bg-gray-50';
-                    const container = document.createElement('div');
-                    container.className = 'flex items-center justify-between w-full gap-4';
-                    const editWrapper = document.createElement('div');
-                    editWrapper.className = 'edit-post-wrapper flex-grow min-w-0 cursor-pointer';
-                    editWrapper.dataset.postId = post.id;
-                    const titleP = document.createElement('p');
-                    titleP.className = 'post-title font-semibold truncate';
-                    titleP.textContent = post.title;
-                    const dateP = document.createElement('p');
-                    dateP.className = 'text-sm text-gray-500';
-                    dateP.textContent = `Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}`;
-                    editWrapper.append(titleP, dateP);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium';
-                    deleteBtn.textContent = 'Xóa';
-                    deleteBtn.dataset.postId = post.id;
-                    deleteBtn.dataset.postTitle = post.title;
-                    container.append(editWrapper, deleteBtn);
-                    postEl.appendChild(container);
-                    postListContainer.appendChild(postEl);
-                });
+                // THAY THẾ TOÀN BỘ ĐOẠN forEach BẰNG 2 DÒNG NÀY
+                if (data.items) {
+                    renderPostList(data.items);
+                }
                 postListPageToken = data.nextPageToken;
                 loadMorePostsButton.style.display = postListPageToken ? 'block' : 'none';
-                filterPostsInModal();
             } catch (err) {
                 postListContainer.innerHTML = `<p class="text-red-500 p-4">Lỗi tải bài viết: ${err.message}</p>`;
             } finally {
@@ -385,6 +363,75 @@
                 setStatus(`Lỗi khi tải bài viết: ${err.message}`, 'error');
             }
         }
+		// BẮT ĐẦU DÁN MÃ MỚI TỪ ĐÂY
+        // Hàm mới để render danh sách bài viết (tái sử dụng code)
+        function renderPostList(posts) {
+            posts.forEach(post => {
+                const postEl = document.createElement('div');
+                postEl.id = `post-item-${post.id}`;
+                postEl.className = 'post-item p-3 border-b hover:bg-gray-50';
+                const container = document.createElement('div');
+                container.className = 'flex items-center justify-between w-full gap-4';
+                const editWrapper = document.createElement('div');
+                editWrapper.className = 'edit-post-wrapper flex-grow min-w-0 cursor-pointer';
+                editWrapper.dataset.postId = post.id;
+                const titleP = document.createElement('p');
+                titleP.className = 'post-title font-semibold truncate';
+                titleP.textContent = post.title;
+                const dateP = document.createElement('p');
+                dateP.className = 'text-sm text-gray-500';
+                dateP.textContent = `Cập nhật: ${new Date(post.updated).toLocaleString('vi-VN')}`;
+                editWrapper.append(titleP, dateP);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-post-button flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-lg text-sm font-medium';
+                deleteBtn.textContent = 'Xóa';
+                deleteBtn.dataset.postId = post.id;
+                deleteBtn.dataset.postTitle = post.title;
+                container.append(editWrapper, deleteBtn);
+                postEl.appendChild(container);
+                postListContainer.appendChild(postEl);
+            });
+        }
+
+        // Hàm mới để xử lý tìm kiếm trên toàn blog
+        async function handlePostSearch() {
+            const query = searchPostInput.value.trim();
+            const token = gapi.client.getToken();
+
+            // Nếu ô tìm kiếm trống, tải lại danh sách bài viết mới nhất
+            if (!query) {
+                fetchPostsForModal(); // Gọi lại hàm tải bài viết mặc định
+                return;
+            }
+
+            // Nếu có từ khóa, gọi API search
+            postListContainer.innerHTML = '<p class="p-4 text-center text-gray-500">Đang tìm kiếm...</p>';
+            loadMorePostsButton.style.display = 'none'; // Ẩn nút "Tải thêm" khi tìm kiếm
+
+            try {
+                const response = await fetch('/api/posts/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accessToken: token.access_token,
+                        blogId: selectedBlogId,
+                        query: query
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error?.message);
+
+                postListContainer.innerHTML = ''; // Xóa thông báo "Đang tìm kiếm"
+                if (data.items && data.items.length > 0) {
+                    renderPostList(data.items);
+                } else {
+                    postListContainer.innerHTML = '<p class="p-4 text-center text-gray-500">Không tìm thấy bài viết nào phù hợp.</p>';
+                }
+            } catch (err) {
+                postListContainer.innerHTML = `<p class="text-red-500 p-4 text-center">Lỗi khi tìm kiếm: ${err.message}</p>`;
+            }
+        }
+        // KẾT THÚC DÁN MÃ MỚI Ở ĐÂY
         function confirmPostDeletion(postId, postTitle) {
             postToDelete = { id: postId, title: postTitle };
             document.getElementById('post-to-delete-title').textContent = `"${postTitle}"`;
@@ -553,13 +600,6 @@
                 theme: 'snow'
             });
         }
-        function filterPostsInModal() {
-            const query = searchPostInput.value.toLowerCase().trim();
-            postListContainer.querySelectorAll('.post-item').forEach(post => {
-                const title = post.querySelector('.post-title').textContent.toLowerCase();
-                post.style.display = title.includes(query) ? 'block' : 'none';
-            });
-        }
         
 		document.addEventListener('DOMContentLoaded', () => {
 			// Gán biến
@@ -601,7 +641,13 @@
 			
 			closeModalButton.addEventListener('click', () => findPostModal.classList.add('hidden'));
 			loadMorePostsButton.addEventListener('click', () => fetchPostsForModal(true));
-			searchPostInput.addEventListener('input', filterPostsInModal);
+			// THAY DÒNG searchPostInput.addEventListener('input', filterPostsInModal); BẰNG ĐOẠN NÀY
+            searchPostInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Ngăn hành vi mặc định của Enter
+                    handlePostSearch();
+                }
+            });
 			
 			let isMouseOverSuggestions = false;
 			labelsInput.addEventListener('input', () => showLabelSuggestions(labelsInput.value));
