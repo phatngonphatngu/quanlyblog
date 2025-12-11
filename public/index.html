@@ -183,89 +183,150 @@
 			}
 		}
 		async function initializeApp() {
-			try {
-				authMessage.textContent = 'Đang tải cấu hình...';
-				const response = await fetch('/api/config');
-				if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
-				const config = await response.json();
-				if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
-				await gapi.client.load('oauth2', 'v2');
-				const savedToken = localStorage.getItem('google_auth_token');
-				const savedExpiration = localStorage.getItem('google_auth_token_expiration');
-				if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
-					authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
-					gapi.client.setToken({ access_token: savedToken });
-					fetchUserInfoAndBlogs();
-					return;
-				}
-				localStorage.clear();
-				tokenClient = google.accounts.oauth2.initTokenClient({
-					client_id: config.clientId,
-					scope: SCOPES,
-					callback: (tokenResponse) => {
-						if (tokenResponse && tokenResponse.access_token) {
-							const expiresIn = (tokenResponse.expires_in || 3600) - 60;
-							const expirationTime = Date.now() + expiresIn * 1000;
-							localStorage.setItem('google_auth_token', tokenResponse.access_token);
-							localStorage.setItem('google_auth_token_expiration', expirationTime);
-							gapi.client.setToken(tokenResponse);
-							fetchUserInfoAndBlogs();
-						}
-					},
-					error_callback: (error) => {
-						console.error("Lỗi xác thực Google:", error); 
-						setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi. Vui lòng thử lại.', 'error');
-						document.getElementById('login-button').disabled = false;
-					},
-				});
-				authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
-				document.getElementById('login-button').disabled = false;
-			} catch (error) {
-				console.error("LỖI KHỞI TẠO:", error);
-				authMessage.innerHTML = `<p class="text-red-600 font-bold">Lỗi kết nối hoặc cấu hình!</p>`;
-				document.getElementById('login-button').disabled = true;
-			}
+		    // 1. Cài đặt bộ đếm ngược an toàn (Safety Timeout)
+		    const resetBtn = document.getElementById('force-reset-button');
+		    const safetyTimeout = setTimeout(() => {
+		        authMessage.innerHTML = 'Hệ thống phản hồi chậm (có thể do server đang khởi động).<br>Vui lòng đợi thêm hoặc nhấn nút bên dưới.';
+		        if(resetBtn) {
+		            resetBtn.classList.remove('hidden');
+		            resetBtn.onclick = () => {
+		                localStorage.clear();
+		                location.reload();
+		            };
+		        }
+		    }, 8000); // Sau 8 giây sẽ hiện nút reset
+		
+		    try {
+		        authMessage.textContent = 'Đang kết nối tới máy chủ...';
+		        
+		        // Gọi config. Nếu server đang ngủ, cái này sẽ mất thời gian
+		        const response = await fetch('/api/config'); 
+		        if (!response.ok) throw new Error(`Lỗi tải cấu hình: ${response.status}`);
+		        
+		        const config = await response.json();
+		        if (!config.clientId) throw new Error("Client ID không hợp lệ từ server.");
+		        
+		        await gapi.client.load('oauth2', 'v2');
+		        
+		        const savedToken = localStorage.getItem('google_auth_token');
+		        const savedExpiration = localStorage.getItem('google_auth_token_expiration');
+		        
+		        // Kiểm tra token lưu trữ
+		        if (savedToken && savedExpiration && Date.now() < parseInt(savedExpiration, 10)) {
+		            authMessage.textContent = 'Đang khôi phục phiên đăng nhập...';
+		            gapi.client.setToken({ access_token: savedToken });
+		            
+		            // QUAN TRỌNG: Gọi hàm này và đợi kết quả. Nếu lỗi -> catch sẽ bắt
+		            await fetchUserInfoAndBlogs(true); 
+		            
+		            // Nếu thành công, xóa timeout
+		            clearTimeout(safetyTimeout);
+		            return;
+		        }
+		
+		        // Nếu không có token hoặc token hết hạn
+		        localStorage.clear();
+		        authMessage.textContent = 'Vui lòng đăng nhập để tiếp tục.';
+		        initGoogleLogin(config.clientId);
+		        clearTimeout(safetyTimeout);
+		
+		    } catch (error) {
+		        console.error("LỖI KHỞI TẠO:", error);
+		        clearTimeout(safetyTimeout);
+		        handleLoginError(error);
+		    }
 		}
-		async function fetchUserInfoAndBlogs() {
-			try {
-				setStatus('Đang xác thực và tải dữ liệu...', 'info');
-				const profileResponse = await gapi.client.oauth2.userinfo.get();
-				const userEmail = profileResponse.result.email;
-				const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
-				if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
-					setStatus(`Tài khoản ${userEmail} không được phép.`, 'error');
-					setTimeout(handleLogout, 4000); 
-					return;
-				}
-				if (SUPER_ADMIN_EMAILS.map(email => email.toLowerCase()).includes(userEmail.toLowerCase())) {
-					document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
-				}
-				const token = gapi.client.getToken();
-				const backendResponse = await fetch('/api/blogs', {
-					method: 'POST', headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ accessToken: token.access_token })
-				});
-				if (backendResponse.status === 401) {
-					setStatus('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
-					handleLogout();
-					return;
-				}
-				const blogData = await backendResponse.json();
-				if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog từ server');
-				const blogs = blogData.items;
-				if (blogs && blogs.length > 0) {
-					selectedBlogId = blogs[0].id;
-					updateUI(true); 
-					setStatus('Sẵn sàng để tạo bài viết mới. Đang tải nhãn...', 'info');
-					fetchAndStoreLabels(selectedBlogId); 
+		// Tách hàm khởi tạo client login ra cho gọn
+		function initGoogleLogin(clientId) {
+		    tokenClient = google.accounts.oauth2.initTokenClient({
+		        client_id: clientId,
+		        scope: SCOPES,
+		        callback: (tokenResponse) => {
+		            if (tokenResponse && tokenResponse.access_token) {
+		                const expiresIn = (tokenResponse.expires_in || 3600) - 60;
+		                const expirationTime = Date.now() + expiresIn * 1000;
+		                localStorage.setItem('google_auth_token', tokenResponse.access_token);
+		                localStorage.setItem('google_auth_token_expiration', expirationTime);
+		                gapi.client.setToken(tokenResponse);
+		                fetchUserInfoAndBlogs(false); // False nghĩa là đăng nhập mới
+		            }
+		        },
+		        error_callback: (error) => {
+		            setStatus('Đăng nhập bị hủy bỏ hoặc có lỗi.', 'error');
+		            document.getElementById('login-button').disabled = false;
+		        },
+		    });
+		    document.getElementById('login-button').disabled = false;
+		}
+		// Sửa lại hàm fetch info để xử lý lỗi token zombie tốt hơn
+		async function fetchUserInfoAndBlogs(isRestoring = false) {
+		    try {
+		        setStatus('Đang xác thực tài khoản...', 'info');
+		        
+		        // Gọi User Info. Nếu token sai, gapi sẽ ném lỗi tại đây
+		        const profileResponse = await gapi.client.oauth2.userinfo.get(); 
+		        const userEmail = profileResponse.result.email;
+		        
+		        // Kiểm tra Email cho phép
+		        const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
+		        if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
+		            throw new Error(`Tài khoản ${userEmail} không có quyền truy cập.`);
+		        }
+		
+		        // Xử lý Super Admin
+		        if (SUPER_ADMIN_EMAILS.map(email => email.toLowerCase()).includes(userEmail.toLowerCase())) {
+		            document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
+		        }
+		
+		        setStatus('Đang tải dữ liệu Blog...', 'info');
+		        const token = gapi.client.getToken();
+		        
+		        // Gọi Backend
+		        const backendResponse = await fetch('/api/blogs', {
+		            method: 'POST', headers: { 'Content-Type': 'application/json' },
+		            body: JSON.stringify({ accessToken: token.access_token })
+		        });
+		
+		        // Nếu backend trả về 401 (Unauthorized), nghĩa là token hết hạn ở phía server
+		        if (backendResponse.status === 401) {
+		            throw new Error("Phiên đăng nhập hết hạn.");
+		        }
+		
+		        const blogData = await backendResponse.json();
+		        if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog');
+		
+		        const blogs = blogData.items;
+		        if (blogs && blogs.length > 0) {
+		            selectedBlogId = blogs[0].id;
+		            updateUI(true); 
+		            setStatus('Đang tải nhãn...', 'info');
+		            fetchAndStoreLabels(selectedBlogId);
+		        } else {
+		            throw new Error('Không tìm thấy blog nào.');
+		        }
+		
+		    } catch (err) {
+		        // QUAN TRỌNG: Nếu đang khôi phục phiên (isRestoring = true) mà gặp lỗi
+		        // thì KHÔNG được treo, mà phải logout ngay để user đăng nhập lại.
+		        console.warn("Lỗi trong quá trình lấy thông tin:", err);
+				if (isRestoring) {
+				    console.log("Token cũ không hợp lệ, đang làm mới...");
+				    localStorage.clear();
+				    authMessage.innerHTML = 'Phiên bản hết hạn. Đang tải lại trang...';
+				    // Tự động reload sau 1.5 giây để người dùng đăng nhập lại từ đầu sạch sẽ
+				    setTimeout(() => location.reload(), 1500); 
 				} else {
-					setStatus('Không tìm thấy blog nào cho tài khoản này.', 'error');
-					handleLogout();
-				}
-			} catch (err) {
-				setStatus(`Lỗi khi tải dữ liệu: ${err.message}`, 'error');
-				handleLogout();
-			}
+		            setStatus(`Lỗi: ${err.message}`, 'error');
+		            handleLogout();
+		        }
+		    }
+		}
+		function handleLoginError(error) {
+		    authMessage.innerHTML = `<p class="text-red-600 font-bold text-sm">Lỗi: ${error.message}</p>`;
+		    document.getElementById('login-button').disabled = false;
+		    // Hiện nút reset luôn cho chắc
+		    const resetBtn = document.getElementById('force-reset-button');
+		    if(resetBtn) resetBtn.classList.remove('hidden');
 		}
         function updateUI(isLoggedIn) {
             authContainer.classList.toggle('hidden', isLoggedIn);
@@ -885,7 +946,10 @@
 		<div class="text-center bg-white p-8 rounded-xl shadow-lg max-w-sm w-full">
 			<img src="logo.png" alt="Logo" class="mx-auto h-48 w-48 mb-4 object-contain" onerror="this.style.display='none'">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">ĐĂNG BÀI KHAI THỊ</h1>
-            <div id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</div>
+			<div id="auth-message" class="mb-4 text-gray-600">Đang khởi tạo...</div>
+			<button id="force-reset-button" class="hidden text-sm text-red-500 underline mb-4 hover:text-red-700">
+			    Đang tải quá lâu? Nhấn vào đây để đăng nhập lại.
+			</button>
             <button id="login-button" class="w-full px-6 py-2.5 rounded-lg font-semibold text-white transition duration-200 bg-blue-600 hover:bg-blue-700 inline-flex items-center justify-center" disabled="">
                 <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.244,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
                 Đăng nhập với Google
