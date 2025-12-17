@@ -682,6 +682,87 @@
 			setStatus(finalMessage, errorCount > 0 ? 'error' : 'success', 8000);
 			findDuplicatePosts();
 		}
+		// *** CÁC HÀM XỬ LÝ VĂN BẢN (MỚI THÊM) ***
+        
+        function formatTextLogic(text) {
+            const lines = text.split('\n');
+            const vietnameseLines = [];
+            const chineseLines = [];
+            const sourceLines = new Set();
+            const closingLines = [];
+
+            const chineseRegex = /[\u4e00-\u9fa5]/;
+            const standaloneSourceRegex = /^(wenda|zongshu|shuohua)[\w\s:.-]+$/i;
+            const closingRegex = /^Trong quá trình dịch, chia sẻ Pháp/i;
+
+            const remainingLines = [];
+            for (const line of lines) {
+                if (closingRegex.test(line.trim())) {
+                    closingLines.push(line);
+                } else {
+                    remainingLines.push(line);
+                }
+            }
+
+            remainingLines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine === '') return;
+                if (standaloneSourceRegex.test(trimmedLine)) {
+                    sourceLines.add(trimmedLine);
+                } else if (chineseRegex.test(line)) {
+                    chineseLines.push(line);
+                } else {
+                    vietnameseLines.push(line);
+                }
+            });
+
+            const blocks = [];
+            if (vietnameseLines.length > 0) blocks.push(vietnameseLines.join('\n').trim());
+            if (sourceLines.size > 0) blocks.push(Array.from(sourceLines).join('\n').trim());
+            if (chineseLines.length > 0) blocks.push(chineseLines.join('\n').trim());
+            if (closingLines.length > 0) blocks.push(closingLines.join('\n').trim());
+            
+            return blocks.join('\n\n');
+        }
+
+        function cleanTextLogic(text) {
+            // 1. Bảo vệ URL
+            const urlRegex = /(?:(?:https?|ftp):\/\/|www\.)[^\s/$.?#].[^\s]*/gi;
+            const urlMap = new Map();
+            let placeholderIndex = 0;
+            const textWithPlaceholders = text.replace(urlRegex, (url) => {
+                const placeholder = `URLPLACEHOLDER${placeholderIndex}`;
+                urlMap.set(placeholder, url);
+                placeholderIndex++;
+                return placeholder;
+            });
+
+            // 2. Xử lý Emoji và Smiley
+            const lines = textWithPlaceholders.split('\n');
+            const cleanedLines = lines.map(line => {
+                let cleanedLine = line;
+                const emojiPattern = `\\p{Regional_Indicator}\\p{Regional_Indicator}|\\p{Extended_Pictographic}(?:\\p{Emoji_Modifier}|\\uFE0F|\\u200D\\p{Extended_Pictographic})*`;
+                const safeSmileys = `;-?\\)|:-?D|:-?P|XD`;
+                const happySmiley = `:-?\\)`;
+                const sadSmiley = `:-?\\(`;
+
+                const allRemovablesPattern = new RegExp(`(?:${emojiPattern}|${safeSmileys}|${happySmiley})(?:\\s*:\\s*)?`, 'gu');
+                cleanedLine = cleanedLine.replace(allRemovablesPattern, '');
+
+                const sadSmileyPattern = new RegExp(sadSmiley, 'g');
+                cleanedLine = cleanedLine.replace(sadSmileyPattern, '(');
+                cleanedLine = cleanedLine.replace(/(^\s*:\s*)|(\s+:\s*)/g, ' ');
+                return cleanedLine.replace(/\s+/g, ' ').trim();
+            });
+
+            // 3. Khôi phục URL
+            let cleanedTextWithPlaceholders = cleanedLines.join('\n');
+            for (const [placeholder, url] of urlMap.entries()) {
+                const placeholderRegex = new RegExp(placeholder.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g');
+                cleanedTextWithPlaceholders = cleanedTextWithPlaceholders.replace(placeholderRegex, url);
+            }
+            return cleanedTextWithPlaceholders;
+        }
 		// THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM MỚI NÀY
         function initializeQuill() {
             quill = new Quill('#editor', {
@@ -722,6 +803,40 @@
                     quill.setText('');
                 }
             });
+			
+			// --- GÁN SỰ KIỆN CHO 2 NÚT MỚI ---
+
+            // 1. Nút Trình bày
+            const formatBtn = document.getElementById('custom-format-button');
+            if (formatBtn) {
+                formatBtn.addEventListener('click', () => {
+                    const currentText = quill.getText(); // Lấy văn bản thô
+                    if (!currentText.trim()) {
+                        setStatus('Không có nội dung để trình bày.', 'info');
+                        return;
+                    }
+                    if (confirm('Hành động này sẽ sắp xếp lại bố cục bài viết. Bạn có muốn tiếp tục?')) {
+                        const formatted = formatTextLogic(currentText);
+                        quill.setText(formatted); // Ghi đè lại bằng văn bản đã format
+                        setStatus('Đã trình bày lại văn bản.', 'success');
+                    }
+                });
+            }
+
+            // 2. Nút Làm sạch
+            const cleanBtn = document.getElementById('custom-clean-button');
+            if (cleanBtn) {
+                cleanBtn.addEventListener('click', () => {
+                    const currentText = quill.getText();
+                    if (!currentText.trim()) {
+                        setStatus('Không có nội dung để làm sạch.', 'info');
+                        return;
+                    }
+                    const cleaned = cleanTextLogic(currentText);
+                    quill.setText(cleaned); // Ghi đè lại bằng văn bản đã làm sạch
+                    setStatus('Đã dọn dẹp các ký tự thừa/emoji.', 'success');
+                });
+            }
         }
         
 		document.addEventListener('DOMContentLoaded', () => {
@@ -856,86 +971,8 @@
     <script async="" defer="" src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async="" defer="" src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
     <link href="output.css" rel="stylesheet">
-
-    <!-- === PWA (Progressive Web App) Support === -->
-    <meta name="theme-color" content="#92400e">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="images/icons/icon-192x192.png">
-    <link rel="icon" href="images/icons/icon-32x32.png" type="image/png">
-    <!-- === End PWA Support === --><style>
-        #install-prompt {
-            /* Layout */
-            display: none; /* JS sẽ đổi thành 'flex' để hiển thị */
-            align-items: center;
-            gap: 1rem;
-            
-            /* Position */
-            position: fixed;
-            bottom: 80px;
-            left: 1rem;
-            right: 1rem;
-            z-index: 2000;
-            max-width: 28rem; /* 448px */
-            margin-left: auto;
-            margin-right: auto;
-
-            /* Appearance */
-            background-color: #166534; /* Tương ứng bg-green-800 */
-            color: #ffffff;
-            padding: 0.75rem; /* 12px */
-            border-radius: 0.5rem; /* 8px */
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        @media (min-width: 640px) {
-            #install-prompt {
-                left: 50%;
-                transform: translateX(-50%);
-                width: auto;
-            }
-        }
-        #install-prompt .prompt-text {
-            flex-grow: 1;
-            font-size: 0.875rem; /* 14px */
-        }
-        #install-prompt #install-button {
-            background-color: #ffffff;
-            color: #166534; /* Màu chữ xanh đậm */
-            font-weight: 700;
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem; /* 6px */
-            border: none;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: background-color 0.2s;
-        }
-        #install-prompt #install-button:hover {
-            background-color: #f0fdf4; /* Màu nền xanh lá rất nhạt khi hover */
-        }
-        #install-prompt #close-install-prompt {
-            background: none;
-            border: none;
-            color: #ffffff;
-            opacity: 0.7;
-            cursor: pointer;
-            flex-shrink: 0;
-            padding: 0.25rem;
-            transition: opacity 0.2s;
-        }
-        #install-prompt #close-install-prompt:hover {
-            opacity: 1;
-        }</style></head>
+</head>
 <body class="bg-gray-100">
-    <!-- PWA Install Prompt -->
-    <div id="install-prompt">
-        <div class="prompt-text">
-            Cài đặt ứng dụng để sử dụng thuận tiện hơn!
-        </div>
-        <button id="install-button">Cài đặt</button>
-        <button id="close-install-prompt">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-    </div>
-
     <!-- Thông báo nổi -->
     <div id="floating-toast" class="fixed top-0 left-1/2 w-full max-w-md p-4 z-[200] transition-all duration-300 ease-in-out opacity-0" style="transform: translate(-50%, -120%);">
         <div id="toast-content"></div>
@@ -1009,6 +1046,14 @@
 					</select>
 				</span>
 				<span class="ql-formats ql-custom-buttons">
+					<button id="custom-format-button" title="Trình bày (Phân tách Việt/Trung)">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+					</button>
+					
+					<button id="custom-clean-button" title="Làm sạch (Xóa icon/emoji)">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L14.5 8.5L21 10L14.5 11.5L12 18L9.5 11.5L3 10L9.5 8.5L12 2Z"></path><path d="M4 2L5 4"></path><path d="M19 13L20 15"></path></svg>
+					</button>
+
 					<button id="custom-paste-button" title="Dán nội dung từ clipboard">
 						<svg viewbox="0 0 18 18"><polygon class="ql-stroke" points="10 4 10 2 4 2 4 13 6 13 6 15 12 15 12 4"></polygon><rect class="ql-fill" height="1" width="3" x="5" y="4"></rect><rect class="ql-fill" height="1" width="3" x="5" y="6"></rect><rect class="ql-fill" height="1" width="3" x="5" y="8"></rect></svg>
 					</button>
@@ -1107,54 +1152,5 @@
 			</div>
 		</div>
 	</div>
-	<script>
-	        // === PWA Installation Logic ===
-	        window.addEventListener('load', () => {
-	            const installPromptEl = document.getElementById('install-prompt');
-	            const installButton = document.getElementById('install-button');
-	            const closeInstallPromptButton = document.getElementById('close-install-prompt');
-	            let deferredPrompt;
-	
-	            if ('serviceWorker' in navigator) {
-	                navigator.serviceWorker.register('sw.js')
-	                .then((reg) => console.log('Service worker registered.', reg))
-	                .catch((err) => console.error('Service worker registration failed:', err));
-	            }
-	
-	            window.addEventListener('beforeinstallprompt', (e) => {
-	                e.preventDefault();
-	                deferredPrompt = e;
-	                if (installPromptEl) {
-	                    installPromptEl.style.display = 'flex';
-	                }
-	            });
-	
-	            if (installButton) {
-	                installButton.addEventListener('click', async () => {
-	                    if (deferredPrompt) {
-	                        if (installPromptEl) installPromptEl.style.display = 'none';
-	                        deferredPrompt.prompt();
-	                        await deferredPrompt.userChoice;
-	                        deferredPrompt = null;
-	                    }
-	                });
-	            }
-	
-	            if (closeInstallPromptButton) {
-	                closeInstallPromptButton.addEventListener('click', () => {
-	                     if (installPromptEl) {
-	                        installPromptEl.style.display = 'none';
-	                     }
-	                });
-	            }
-	            
-	            setTimeout(() => {
-	                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-	                if (!isStandalone && deferredPrompt) {
-	                    if (installPromptEl) installPromptEl.style.display = 'flex';
-	                }
-	            }, 3000);
-	        });
-	</script>
 </body>
 </html>
