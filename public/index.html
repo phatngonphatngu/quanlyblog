@@ -92,13 +92,6 @@
     </style>
 
     <script type="text/javascript">
-        // *** CẤU HÌNH ***
-        const ALLOWED_EMAILS = [
-            'phatngonphatngu@gmail.com', 'Khanhlinhahaha@gmail.com', 'phamduongnhung@gmail.com',
-            'pmtl.protect@gmail.com', 'phamanhtuan9368@gmail.com', 'phamtung936@gmail.com',
-            'thuuyen490@gmail.com', 'vantb0123456@gmail.com', 'vuluyenc67@gmail.com',
-            'tuyen51189@gmail.com', 'kiwi31072023@gmail.com',
-        ];
 		const SUPER_ADMIN_EMAILS = [
 			'phatngonphatngu@gmail.com',
 			'phamanhtuan9368@gmail.com',
@@ -266,13 +259,7 @@
 		        // Gọi User Info. Nếu token sai, gapi sẽ ném lỗi tại đây
 		        const profileResponse = await gapi.client.oauth2.userinfo.get(); 
 		        const userEmail = profileResponse.result.email;
-		        
-		        // Kiểm tra Email cho phép
-		        const normalizedAllowedEmails = ALLOWED_EMAILS.map(email => email.toLowerCase().trim());
-		        if (!normalizedAllowedEmails.includes(userEmail.toLowerCase())) {
-		            throw new Error(`Tài khoản ${userEmail} không có quyền truy cập.`);
-		        }
-		
+	
 		        // Xử lý Super Admin
 		        if (SUPER_ADMIN_EMAILS.map(email => email.toLowerCase()).includes(userEmail.toLowerCase())) {
 		            document.querySelectorAll('.super-admin-feature').forEach(el => el.classList.remove('hidden'));
@@ -296,14 +283,15 @@
 		        if (!backendResponse.ok) throw new Error(blogData.error?.message || 'Lỗi tải blog');
 		
 		        const blogs = blogData.items;
-		        if (blogs && blogs.length > 0) {
-		            selectedBlogId = blogs[0].id;
-		            updateUI(true); 
-		            setStatus('Đang tải nhãn...', 'info');
-		            fetchAndStoreLabels(selectedBlogId);
-		        } else {
-		            throw new Error('Không tìm thấy blog nào.');
-		        }
+				if (blogs && blogs.length > 0) {
+				    selectedBlogId = blogs[0].id;
+				    updateUI(true); 
+				    setStatus('Đang tải nhãn...', 'info');
+				    fetchAndStoreLabels(selectedBlogId);
+				} else {
+				    // Nếu đăng nhập được gmail nhưng API không trả về blog nào
+				    throw new Error('Tài khoản này chưa được cấp quyền tác giả trên bất kỳ Blog nào.');
+				}
 		
 		    } catch (err) {
 		        // QUAN TRỌNG: Nếu đang khôi phục phiên (isRestoring = true) mà gặp lỗi
